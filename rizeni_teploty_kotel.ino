@@ -12,7 +12,8 @@
 #define NORMTEMP 1 / (25 + 273.15)
 #define R0 9800
 #define R 10000
-#define EKVITERM_KOEF 2.38
+#define EKVITERM_KOEF 2.34
+#define EKVITERM_SLOPE -0.7
 
 LiquidCrystal_I2C lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 virtuabotixRTC myRtc(2, 3, 4);
@@ -62,7 +63,8 @@ int getRequiredInsideTemperature()
 
 void computeRequiredTemperature()
 {
-  value =  EKVITERM_KOEF * getRequiredInsideTemperature() + (1 - EKVITERM_KOEF) * outsideTemperature;
+  value = (outsideTemperature * EKVITERM_SLOPE) + (getRequiredInsideTemperature() * EKVITERM_KOEF);
+  //value =  EKVITERM_KOEF * getRequiredInsideTemperature() + (1 - EKVITERM_KOEF) * outsideTemperature;
   lcd.setCursor(0, 0);
   lcd.print(value);
 }
@@ -142,14 +144,6 @@ void checkHeating(unsigned long currentMillis)
   if(heatingOff && ((value >= 40 && inputTemperature > 40) || (value < 40 && inputTemperature > value + 2)))
   {
     heatingOff = false;
-  }
-  if(heatingOff && position <= 0)
-  {
-    interval = 2000;
-    direction = 1;
-    digitalWrite(9, HIGH);
-    relayOn = true;
-    relayOnMillis = currentMillis;   
   }
 }
 
