@@ -92,6 +92,7 @@ void computeRequiredTemperature()
   //nastavená teplota v místnosti
   double inTemp = 22;
   //nastavená teplota topné vody pro venkovní teplotu 0°C
+  //touto proměnnou se nastavuje sklon topné křivky.
   double zeroTemp = 45;
   Ds1302::DateTime now;
   rtc.getDateTime(&now);
