@@ -219,7 +219,7 @@ void loop() {
   if(!heatingOff && !relayOn && currentMillis - relayOffMillis > 10000)
   {
     interval = min(abs(value-celsius) * 1875, 60000);
-    if(interval >= 1000)
+    if(interval >= 500)
     {
       setRelay(value, celsius);
       relayOnMillis = currentMillis;
