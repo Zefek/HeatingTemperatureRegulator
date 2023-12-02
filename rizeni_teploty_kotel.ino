@@ -36,8 +36,6 @@ double inputTemperature = 25;
 double outsideTemperature = 14;
 
 void setup() {
-  Serial.begin(9600);
-  Serial.println("Started.");
   analogReference(EXTERNAL);
   rtc.init();
   lcd.Init(&rtc);
