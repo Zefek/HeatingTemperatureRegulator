@@ -124,14 +124,9 @@ void TemperatureSensor::CheckTemperature()
 
     if (!fail) 
     {
-      //Serial.print(((((double)temp*0.1)-90)-32)*((double)5/9));
       TemperatureSensor::Read(72, 80, &channel);
       TemperatureChanged(((((double)temp*0.1)-90)-32)*((double)5/9), (int)channel);
       receivedMillis = millis();
-    } 
-    else 
-    {
-      //Serial.println("Decoding error.");
     }
     received = false;
     syncIndex1 = 0;
