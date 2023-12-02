@@ -217,7 +217,7 @@ void loop() {
     position = min(max(position, 0), 120000);
     relayOffMillis = currentMillis;
   }
-  if(!heatingOff && !relayOn && currentMillis - relayOffMillis > 45000)
+  if(!heatingOff && !relayOn && currentMillis - relayOffMillis > 10000)
   {
     interval = min(abs(value-celsius) * 1875, 60000);
     if(interval >= 1000)
