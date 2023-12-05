@@ -28,14 +28,18 @@ unsigned long currentMillis = 0;
 long interval = 0;
 long position = 60000;
 bool relayOn = false;
-double value = 25;
-double celsius = 25;
+int value = 25;
+int celsius = 25;
 short direction = 0;
 bool heatingOff = true;
-double inputTemperature = 25;
+int inputTemperature = 25;
 double outsideTemperature = 14;
+double currentTemperatureAverage = 25;
+int currentTemperatureAverageCount = 0;
+long currentTemperatureAverageMillis = 0;
 
 void setup() {
+  Serial.begin(9600);
   analogReference(EXTERNAL);
   rtc.init();
   lcd.Init(&rtc);
@@ -48,10 +52,10 @@ void setup() {
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
   outsideTemperatureSensor.Init();
   lcd.SetCurrentHeatingTemperature(celsius);
-  lcd.SetInputTemperature((int)inputTemperature);
+  lcd.SetInputTemperature(inputTemperature);
   lcd.SetOutTemperature(outsideTemperature);
   computeRequiredTemperature();
-  /*int hour, minute, second;
+  int hour, minute, second;
   sscanf(__TIME__, "%d:%d:%d", &hour, &minute, &second);
   Ds1302::DateTime dt;
   dt.hour = hour;
@@ -60,7 +64,7 @@ void setup() {
   dt.day = 2;
   dt.month = 12;
   dt.year = 2023;
-  rtc.setDateTime(&dt);*/
+  rtc.setDateTime(&dt);
   wdt_enable(WDTO_1S);
 }
 
@@ -80,9 +84,9 @@ void OutsideTemperatureChanged(double temperature, int channel)
   }
 }
 
-double getTemperature(double pinValue, int beta)
+int getTemperature(double pinValue, int beta)
 {
-  return 1 / (log(R0 / (1023 / pinValue - 1) / R) / beta + NORMTEMP) - 273.15;
+  return (int)round( 1 / (log(R0 / (1023 / pinValue - 1) / R) / beta + NORMTEMP) - 273.15);
 }
 
 void computeRequiredTemperature()
@@ -101,7 +105,7 @@ void computeRequiredTemperature()
   }
   //double newValue = (outsideTemperature * -0.005093696 * -0.005093696) + (outsideTemperature * -0.966171371) + 43.4724957;
   //double newValue = (outsideTemperature * -0.005805978 * -0.005805978) + (outsideTemperature * -0.9839375) + 44.47618789;
-  double newValue = inTemp + (zeroTemp - inTemp) * pow((outsideTemperature - inTemp) / (double) - inTemp, 0.76923);
+  int newValue = (int)round(inTemp + (zeroTemp - inTemp) * pow((outsideTemperature - inTemp) / (double) - inTemp, 0.76923));
   
   //value = (outsideTemperature * EKVITERM_SLOPE) + (getRequiredInsideTemperature() * EKVITERM_KOEF);
   //value =  EKVITERM_KOEF * getRequiredInsideTemperature() + (1 - EKVITERM_KOEF) * outsideTemperature;
@@ -146,7 +150,7 @@ void setRelayOff()
 
 void checkHeating()
 {
-  double tmpValue = value >= 30 ? 30 : value;
+  int tmpValue = value >= 30 ? 30 : value;
   if(!heatingOff && (outsideTemperature > 13.5 || inputTemperature < tmpValue - 2))
   {
     heatingOff = true;
@@ -167,7 +171,7 @@ void checkHeating()
 
 void readInputTemperature()
 {
-  double newInputTemperature = getTemperature(analogRead(OUTTEMPPIN), 3950);
+  int newInputTemperature = getTemperature(analogRead(OUTTEMPPIN), 3950);
   if(newInputTemperature < 0 || newInputTemperature > 100)
   {
     return;
@@ -175,22 +179,49 @@ void readInputTemperature()
   if(newInputTemperature != inputTemperature)
   {
     inputTemperature = newInputTemperature;
-    lcd.SetInputTemperature((int)inputTemperature);
+    lcd.SetInputTemperature(inputTemperature);
   }
   
 }
 
 void readCurrentHeatingTemperature()
 {
-  double newCelsius = getTemperature(analogRead(TEMPPIN), 3950);
+  int newCelsius = getTemperature(analogRead(TEMPPIN), 3950);
   if(newCelsius < 0 || newCelsius > 100)
   {
     return;
   }
-  if(newCelsius != celsius)
+  currentTemperatureAverage = ((currentTemperatureAverage * currentTemperatureAverageCount) + newCelsius) / (currentTemperatureAverageCount+1);
+  currentTemperatureAverageCount++;
+  Serial.print(newCelsius);
+  Serial.print("|");
+  Serial.println(currentTemperatureAverage);
+  if(currentMillis - currentTemperatureAverageMillis > 1000)
   {
-    celsius = newCelsius;
+    currentTemperatureAverageMillis = currentMillis;
+    currentTemperatureAverageCount = 1;
+  }
+  if((int)round(currentTemperatureAverage) != celsius)
+  {
+    celsius = (int)round(currentTemperatureAverage);
     lcd.SetCurrentHeatingTemperature(celsius);
+    if(abs(value - celsius) == 1)
+    {
+      setRegulation(true);
+    }
+  }
+}
+
+void setRegulation(bool ignoreTiming)
+{
+  if(!heatingOff && !relayOn && (currentMillis - relayOffMillis > 15000 || ignoreTiming))
+  {
+    interval = min(abs(value-celsius) * 1500, 60000);
+    if(interval >= 1000)
+    {
+      setRelay(value, celsius);
+      relayOnMillis = currentMillis;
+    }
   }
 }
 
@@ -199,9 +230,9 @@ void loop() {
   currentMillis = millis();
   outsideTemperatureSensor.CheckTemperature();
   lcd.Print();
+  readCurrentHeatingTemperature();
   if(currentMillis - lastReadCelsius > 1000)
   {
-    readCurrentHeatingTemperature();
     readInputTemperature();
     lastReadCelsius = currentMillis;
   }
@@ -216,13 +247,5 @@ void loop() {
     position = min(max(position, 0), 120000);
     relayOffMillis = currentMillis;
   }
-  if(!heatingOff && !relayOn && currentMillis - relayOffMillis > 10000)
-  {
-    interval = min(abs(value-celsius) * 1875, 60000);
-    if(interval >= 500)
-    {
-      setRelay(value, celsius);
-      relayOnMillis = currentMillis;
-    }
-  }
+  setRegulation(false);
 }

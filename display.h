@@ -28,7 +28,7 @@ class Display
     double requiredTemperature = 0;
     double outTemperature = 0;
     int inputTemperature = 0;
-    double currentHeatingTemperature = 0;
+    int currentHeatingTemperature = 0;
     int hours = 0;
     int minutes = 0;
     Ds1302* rtc;
@@ -45,9 +45,9 @@ class Display
     Display(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
     void Init(Ds1302* rtc);
     void BackLight();
-    void SetRequiredTemperature(double requiredTempareture);
+    void SetRequiredTemperature(int requiredTempareture);
     void Print();
-    void SetCurrentHeatingTemperature(double currentHeatingTemperature);
+    void SetCurrentHeatingTemperature(int currentHeatingTemperature);
     void SetInputTemperature(int inputTemperature);
     void SetOutTemperature(double outTemperature);
     void SetHeating(bool heatingOn);

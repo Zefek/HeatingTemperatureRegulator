@@ -71,7 +71,7 @@
       lcd->backlight();
     }
 
-    void Display::SetRequiredTemperature(double requiredTemperature)
+    void Display::SetRequiredTemperature(int requiredTemperature)
     {
       if(this->requiredTemperature != requiredTemperature)
       {
@@ -106,7 +106,7 @@
       }
     }
 
-    void Display::SetCurrentHeatingTemperature(double currentHeatingTemperature)
+    void Display::SetCurrentHeatingTemperature(int currentHeatingTemperature)
     {
       if(this->currentHeatingTemperature != currentHeatingTemperature)
       {
