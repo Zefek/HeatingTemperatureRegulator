@@ -95,13 +95,13 @@ void computeRequiredTemperature()
   double inTemp = 22;
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
-  double zeroTemp = 45;
+  double zeroTemp = 46
   Ds1302::DateTime now;
   rtc.getDateTime(&now);
   if(now.hour < 15 || now.hour >= 23)
   {
     inTemp = 21;
-    zeroTemp = 38;
+    zeroTemp = 39;
   }
   //double newValue = (outsideTemperature * -0.005093696 * -0.005093696) + (outsideTemperature * -0.966171371) + 43.4724957;
   //double newValue = (outsideTemperature * -0.005805978 * -0.005805978) + (outsideTemperature * -0.9839375) + 44.47618789;
@@ -205,23 +205,6 @@ void readCurrentHeatingTemperature()
   {
     celsius = (int)round(currentTemperatureAverage);
     lcd.SetCurrentHeatingTemperature(celsius);
-    if(abs(value - celsius) == 1)
-    {
-      setRegulation(true);
-    }
-  }
-}
-
-void setRegulation(bool ignoreTiming)
-{
-  if(!heatingOff && !relayOn && (currentMillis - relayOffMillis > 15000 || ignoreTiming))
-  {
-    interval = min(abs(value-celsius) * 1500, 60000);
-    if(interval >= 1000)
-    {
-      setRelay(value, celsius);
-      relayOnMillis = currentMillis;
-    }
   }
 }
 
@@ -247,5 +230,13 @@ void loop() {
     position = min(max(position, 0), 120000);
     relayOffMillis = currentMillis;
   }
-  setRegulation(false);
+  if(!heatingOff && !relayOn && currentMillis - relayOffMillis > 15000)
+  {
+    interval = min(abs(value-celsius) * 1500, 60000);
+    if(interval >= 1000)
+    {
+      setRelay(value, celsius);
+      relayOnMillis = currentMillis;
+    }
+  }
 }
