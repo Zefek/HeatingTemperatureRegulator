@@ -37,9 +37,11 @@ double outsideTemperature = 14;
 double currentTemperatureAverage = 25;
 int currentTemperatureAverageCount = 0;
 long currentTemperatureAverageMillis = 0;
+double outsideTemperatureValue[72];
+double outsideTemperatureValueAvarage = 0;
+int outsideTemperatureValueCount = 0;
 
 void setup() {
-  Serial.begin(9600);
   analogReference(EXTERNAL);
   rtc.init();
   lcd.Init(&rtc);
@@ -55,16 +57,16 @@ void setup() {
   lcd.SetInputTemperature(inputTemperature);
   lcd.SetOutTemperature(outsideTemperature);
   computeRequiredTemperature();
-  int hour, minute, second;
+  /*int hour, minute, second;
   sscanf(__TIME__, "%d:%d:%d", &hour, &minute, &second);
   Ds1302::DateTime dt;
   dt.hour = hour;
   dt.minute = minute;
   dt.second = second;
-  dt.day = 2;
+  dt.day = 7;
   dt.month = 12;
   dt.year = 2023;
-  rtc.setDateTime(&dt);
+  rtc.setDateTime(&dt);*/
   wdt_enable(WDTO_1S);
 }
 
@@ -74,12 +76,26 @@ void OutsideTemperatureChanged(double temperature, int channel)
   {
     return;
   }
-  if(channel == 1 && outsideTemperature != temperature)
+  if(channel == 1)
   {
-    Ds1302::DateTime now;
-    rtc.getDateTime(&now);
-    outsideTemperature = temperature;
-    lcd.SetOutTemperature(temperature);
+    if(outsideTemperatureValueCount == 72)
+    {
+      outsideTemperatureValueAvarage = ((outsideTemperatureValueAvarage * outsideTemperatureValueCount) - outsideTemperatureValue[0]) / (outsideTemperatureValueCount - 1);
+      for(int i = 0; i<outsideTemperatureValueCount-1;i++)
+      {
+        outsideTemperatureValue[i]=outsideTemperatureValue[i+1];
+      }
+      outsideTemperatureValueAvarage = ((outsideTemperatureValueAvarage * outsideTemperatureValueCount) + temperature) / (outsideTemperatureValueCount + 1);
+      outsideTemperatureValue[outsideTemperatureValueCount-1];
+    }
+    else
+    {
+      outsideTemperatureValueAvarage = ((outsideTemperatureValueAvarage * outsideTemperatureValueCount) + temperature) / (outsideTemperatureValueCount + 1);
+      outsideTemperatureValue[outsideTemperatureValueCount];
+      outsideTemperatureValueCount++;
+    }
+    outsideTemperature = outsideTemperatureValueAvarage;
+    lcd.SetOutTemperature(outsideTemperatureValueAvarage);
     computeRequiredTemperature();
   }
 }
@@ -95,7 +111,7 @@ void computeRequiredTemperature()
   double inTemp = 22;
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
-  double zeroTemp = 46
+  double zeroTemp = 46;
   Ds1302::DateTime now;
   rtc.getDateTime(&now);
   if(now.hour < 15 || now.hour >= 23)
@@ -193,9 +209,6 @@ void readCurrentHeatingTemperature()
   }
   currentTemperatureAverage = ((currentTemperatureAverage * currentTemperatureAverageCount) + newCelsius) / (currentTemperatureAverageCount+1);
   currentTemperatureAverageCount++;
-  Serial.print(newCelsius);
-  Serial.print("|");
-  Serial.println(currentTemperatureAverage);
   if(currentMillis - currentTemperatureAverageMillis > 1000)
   {
     currentTemperatureAverageMillis = currentMillis;
