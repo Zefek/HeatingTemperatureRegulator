@@ -37,9 +37,6 @@ double outsideTemperature = 14;
 double currentTemperatureAverage = 25;
 int currentTemperatureAverageCount = 0;
 long currentTemperatureAverageMillis = 0;
-double outsideTemperatureValue[72];
-double outsideTemperatureValueAvarage = 0;
-int outsideTemperatureValueCount = 0;
 
 void setup() {
   analogReference(EXTERNAL);
@@ -63,7 +60,7 @@ void setup() {
   dt.hour = hour;
   dt.minute = minute;
   dt.second = second;
-  dt.day = 7;
+  dt.day = 8;
   dt.month = 12;
   dt.year = 2023;
   rtc.setDateTime(&dt);*/
@@ -78,24 +75,8 @@ void OutsideTemperatureChanged(double temperature, int channel)
   }
   if(channel == 1)
   {
-    if(outsideTemperatureValueCount == 72)
-    {
-      outsideTemperatureValueAvarage = ((outsideTemperatureValueAvarage * outsideTemperatureValueCount) - outsideTemperatureValue[0]) / (outsideTemperatureValueCount - 1);
-      for(int i = 0; i<outsideTemperatureValueCount-1;i++)
-      {
-        outsideTemperatureValue[i]=outsideTemperatureValue[i+1];
-      }
-      outsideTemperatureValueAvarage = ((outsideTemperatureValueAvarage * outsideTemperatureValueCount) + temperature) / (outsideTemperatureValueCount + 1);
-      outsideTemperatureValue[outsideTemperatureValueCount-1];
-    }
-    else
-    {
-      outsideTemperatureValueAvarage = ((outsideTemperatureValueAvarage * outsideTemperatureValueCount) + temperature) / (outsideTemperatureValueCount + 1);
-      outsideTemperatureValue[outsideTemperatureValueCount];
-      outsideTemperatureValueCount++;
-    }
-    outsideTemperature = outsideTemperatureValueAvarage;
-    lcd.SetOutTemperature(outsideTemperatureValueAvarage);
+    outsideTemperature = temperature;
+    lcd.SetOutTemperature(temperature);
     computeRequiredTemperature();
   }
 }
