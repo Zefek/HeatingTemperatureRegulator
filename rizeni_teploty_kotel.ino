@@ -23,22 +23,20 @@ Ds1302 rtc(5, 3, 4);
 TemperatureSensor outsideTemperatureSensor(2, OutsideTemperatureChanged);
 unsigned long relayOnMillis = 0;
 unsigned long relayOffMillis = 0;
-unsigned long lastReadCelsius = 0;
 unsigned long currentMillis = 0;
+unsigned long temperatureReadMillis = 0;
 long interval = 0;
 long position = 60000;
 bool relayOn = false;
-int value = 25;
-int celsius = 25;
+double value = 25;
+double celsius = 25;
 short direction = 0;
 bool heatingOff = true;
-int inputTemperature = 25;
+double inputTemperature = 25;
 double outsideTemperature = 14;
-double currentTemperatureAverage = 25;
-int currentTemperatureAverageCount = 0;
-long currentTemperatureAverageMillis = 0;
 
 void setup() {
+  Serial.begin(9600);
   analogReference(EXTERNAL);
   rtc.init();
   lcd.Init(&rtc);
@@ -60,7 +58,7 @@ void setup() {
   dt.hour = hour;
   dt.minute = minute;
   dt.second = second;
-  dt.day = 8;
+  dt.day = 29;
   dt.month = 12;
   dt.year = 2023;
   rtc.setDateTime(&dt);*/
@@ -81,9 +79,9 @@ void OutsideTemperatureChanged(double temperature, int channel)
   }
 }
 
-int getTemperature(double pinValue, int beta)
+double getTemperature(double pinValue, int beta)
 {
-  return (int)round( 1 / (log(R0 / (1023 / pinValue - 1) / R) / beta + NORMTEMP) - 273.15);
+  return 1 / (log(R0 / (1023 / pinValue - 1) / R) / beta + NORMTEMP) - 273.15;
 }
 
 void computeRequiredTemperature()
@@ -168,37 +166,35 @@ void checkHeating()
 
 void readInputTemperature()
 {
-  int newInputTemperature = getTemperature(analogRead(OUTTEMPPIN), 3950);
+  double newInputTemperature = getTemperature(analogRead(OUTTEMPPIN), 3950);
   if(newInputTemperature < 0 || newInputTemperature > 100)
   {
     return;
   }
-  if(newInputTemperature != inputTemperature)
+  if(newInputTemperature < inputTemperature - 0.5 || newInputTemperature > inputTemperature + 0.5)
   {
     inputTemperature = newInputTemperature;
-    lcd.SetInputTemperature(inputTemperature);
+    lcd.SetInputTemperature((int)round(inputTemperature));
   }
   
 }
 
 void readCurrentHeatingTemperature()
 {
-  int newCelsius = getTemperature(analogRead(TEMPPIN), 3950);
+  double newCelsius = getTemperature(analogRead(TEMPPIN), 3950);
   if(newCelsius < 0 || newCelsius > 100)
   {
     return;
   }
-  currentTemperatureAverage = ((currentTemperatureAverage * currentTemperatureAverageCount) + newCelsius) / (currentTemperatureAverageCount+1);
-  currentTemperatureAverageCount++;
-  if(currentMillis - currentTemperatureAverageMillis > 1000)
+  if(newCelsius < celsius - 0.5 || newCelsius > celsius + 0.5)
   {
-    currentTemperatureAverageMillis = currentMillis;
-    currentTemperatureAverageCount = 1;
-  }
-  if((int)round(currentTemperatureAverage) != celsius)
-  {
-    celsius = (int)round(currentTemperatureAverage);
-    lcd.SetCurrentHeatingTemperature(celsius);
+    if((int)round(celsius)!= (int)round(newCelsius))
+    {
+      Serial.print("Variable 1:");
+      Serial.println(newCelsius);
+    }
+    celsius = newCelsius;
+    lcd.SetCurrentHeatingTemperature((int)round(celsius));
   }
 }
 
@@ -207,11 +203,11 @@ void loop() {
   currentMillis = millis();
   outsideTemperatureSensor.CheckTemperature();
   lcd.Print();
-  readCurrentHeatingTemperature();
-  if(currentMillis - lastReadCelsius > 1000)
+  if(currentMillis - temperatureReadMillis > 1500)
   {
+    readCurrentHeatingTemperature();
     readInputTemperature();
-    lastReadCelsius = currentMillis;
+    temperatureReadMillis = currentMillis;
   }
   if(!relayOn)
   {
@@ -224,9 +220,9 @@ void loop() {
     position = min(max(position, 0), 120000);
     relayOffMillis = currentMillis;
   }
-  if(!heatingOff && !relayOn && currentMillis - relayOffMillis > 15000)
+  if(!heatingOff && !relayOn && currentMillis - relayOffMillis > 20000)
   {
-    interval = min(abs(value-celsius) * 1500, 60000);
+    interval = min(abs(value - celsius) * 1000, 60000);
     if(interval >= 1000)
     {
       setRelay(value, celsius);
