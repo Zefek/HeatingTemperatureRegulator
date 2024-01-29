@@ -58,9 +58,9 @@ void setup() {
   dt.hour = hour;
   dt.minute = minute;
   dt.second = second;
-  dt.day = 29;
-  dt.month = 12;
-  dt.year = 2023;
+  dt.day = 27;
+  dt.month = 1;
+  dt.year = 2024;
   rtc.setDateTime(&dt);*/
   wdt_enable(WDTO_1S);
 }
@@ -90,13 +90,13 @@ void computeRequiredTemperature()
   double inTemp = 22;
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
-  double zeroTemp = 46;
+  double zeroTemp = 47.5;
   Ds1302::DateTime now;
   rtc.getDateTime(&now);
   if(now.hour < 15 || now.hour >= 23)
   {
     inTemp = 21;
-    zeroTemp = 39;
+    zeroTemp = 40.5;
   }
   //double newValue = (outsideTemperature * -0.005093696 * -0.005093696) + (outsideTemperature * -0.966171371) + 43.4724957;
   //double newValue = (outsideTemperature * -0.005805978 * -0.005805978) + (outsideTemperature * -0.9839375) + 44.47618789;
