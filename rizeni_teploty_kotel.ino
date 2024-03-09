@@ -58,8 +58,8 @@ void setup() {
   dt.hour = hour;
   dt.minute = minute;
   dt.second = second;
-  dt.day = 27;
-  dt.month = 1;
+  dt.day = 8;
+  dt.month = 3;
   dt.year = 2024;
   rtc.setDateTime(&dt);*/
   wdt_enable(WDTO_1S);
@@ -145,7 +145,7 @@ void setRelayOff()
 
 void checkHeating()
 {
-  int tmpValue = value >= 30 ? 30 : value;
+  int tmpValue = 30;
   if(!heatingOff && (outsideTemperature > 13.5 || inputTemperature < tmpValue - 2))
   {
     heatingOff = true;
