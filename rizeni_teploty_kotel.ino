@@ -58,7 +58,7 @@ void setup() {
   dt.hour = hour;
   dt.minute = minute;
   dt.second = second;
-  dt.day = 8;
+  dt.day = 21;
   dt.month = 3;
   dt.year = 2024;
   rtc.setDateTime(&dt);*/
@@ -146,7 +146,7 @@ void setRelayOff()
 void checkHeating()
 {
   int tmpValue = 30;
-  if(!heatingOff && (outsideTemperature > 13.5 || inputTemperature < tmpValue - 2))
+  if(!heatingOff && (outsideTemperature > 13.5 || inputTemperature < tmpValue - 1))
   {
     heatingOff = true;
     digitalWrite(LESSHEATINGRELAYPIN, LOW);
@@ -156,7 +156,7 @@ void checkHeating()
     relayOn = true;
     relayOnMillis = currentMillis;
   }
-  if(heatingOff && outsideTemperature <= 13  && inputTemperature >= tmpValue + 2)
+  if(heatingOff && outsideTemperature <= 13  && inputTemperature >= tmpValue + 1)
   {
     heatingOff = false;
     digitalWrite(HEATINGPUMPRELAYPIN, LOW);
