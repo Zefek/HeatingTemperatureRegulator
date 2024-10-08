@@ -2,8 +2,8 @@
 #include <Ds1302.h>
 #include <Arduino.h>
 #include "display.h"
-  /* 19.23°*79°*15:34 */
-  /* 21.22°*1*-17.66° */
+  /* 19°*1**79°*15:34 */
+  /* 21°******-17.66° */
 
 
     void Display::print2digits(int number) {
@@ -126,10 +126,20 @@
         this->heatingOn = heatingOn;
         if(!heatingOn)
         {
-          lcd->setCursor(7, 1);
+          lcd->setCursor(4, 0);
           lcd->print(" ");
         }
       }
+    }
+
+    void Display::SetPower(int power)
+    {
+      lcd->setCursor(4, 1);
+      if(power<10)
+      {
+       lcd->print(" "); 
+      }
+      lcd->print(power);
     }
 
     void Display::Blink()
@@ -140,7 +150,7 @@
         lcd->print(":");
         if(heatingOn)
         {
-          lcd->setCursor(7, 1);
+          lcd->setCursor(4, 0);
           lcd->write((byte)0);
         }
       }
@@ -150,7 +160,7 @@
         lcd->print(" ");
         if(heatingOn)
         {
-          lcd->setCursor(7, 1);
+          lcd->setCursor(4, 0);
           lcd->print(" ");
         }
       }
