@@ -51,4 +51,5 @@ class Display
     void SetInputTemperature(int inputTemperature);
     void SetOutTemperature(double outTemperature);
     void SetHeating(bool heatingOn);
+    void SetPower(int power);
 };

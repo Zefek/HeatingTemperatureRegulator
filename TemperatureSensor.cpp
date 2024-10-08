@@ -36,7 +36,7 @@ TemperatureSensor::TemperatureSensor(int interruptPin, void (*temperatureChanged
 
 void TemperatureSensor::Init()
 {
-  digitalWrite(11, HIGH);
+  digitalWrite(3, HIGH);
   attachInterrupt(digitalPinToInterrupt(interruptPin), handler, CHANGE);
 }
 
