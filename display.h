@@ -43,7 +43,7 @@ class Display
 
   public:
     Display(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
-    void Init(Ds1302* rtc);
+    void Init(Ds1302* rtc, void (*timeChanged)(int, int));
     void BackLight();
     void SetRequiredTemperature(int requiredTempareture);
     void Print();
@@ -52,4 +52,5 @@ class Display
     void SetOutTemperature(double outTemperature);
     void SetHeating(bool heatingOn);
     void SetPower(int power);
+    void (*TimeChanged)(int, int);
 };

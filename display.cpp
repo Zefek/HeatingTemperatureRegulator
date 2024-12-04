@@ -30,6 +30,7 @@
         print2digits(now.minute);
         this->minutes = now.minute;
         this->hours = now.hour;
+        this->TimeChanged(this->hours, this->minutes);
       }
     }
     
@@ -58,12 +59,13 @@
       lcd = new LiquidCrystal_I2C(lcd_Addr, lcd_cols, lcd_rows);
     }
 
-    void Display::Init(Ds1302* rtc)
+    void Display::Init(Ds1302* rtc, void (*timeChanged)(int, int))
     {
       lcd->init();
       lcd->createChar(0, onChar);
       lcd->createChar(1, celsiusChar);
       this->rtc = rtc;
+      this->TimeChanged = timeChanged;
     }
 
     void Display::BackLight()
