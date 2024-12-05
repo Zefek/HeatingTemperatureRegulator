@@ -2,8 +2,8 @@
 #include <Ds1302.h>
 #include <Arduino.h>
 #include "display.h"
-  /* 19.23°*79°*15:34 */
-  /* 21.22°*1*-17.66° */
+  /* 19°*1**79°*15:34 */
+  /* 21°******-17.66° */
 
 
     void Display::print2digits(int number) {
@@ -30,6 +30,7 @@
         print2digits(now.minute);
         this->minutes = now.minute;
         this->hours = now.hour;
+        this->TimeChanged(this->hours, this->minutes);
       }
     }
     
@@ -58,12 +59,13 @@
       lcd = new LiquidCrystal_I2C(lcd_Addr, lcd_cols, lcd_rows);
     }
 
-    void Display::Init(Ds1302* rtc)
+    void Display::Init(Ds1302* rtc, void (*timeChanged)(int, int))
     {
       lcd->init();
       lcd->createChar(0, onChar);
       lcd->createChar(1, celsiusChar);
       this->rtc = rtc;
+      this->TimeChanged = timeChanged;
     }
 
     void Display::BackLight()
@@ -126,10 +128,20 @@
         this->heatingOn = heatingOn;
         if(!heatingOn)
         {
-          lcd->setCursor(7, 1);
+          lcd->setCursor(4, 0);
           lcd->print(" ");
         }
       }
+    }
+
+    void Display::SetPower(int power)
+    {
+      lcd->setCursor(4, 1);
+      if(power<10)
+      {
+       lcd->print(" "); 
+      }
+      lcd->print(power);
     }
 
     void Display::Blink()
@@ -140,7 +152,7 @@
         lcd->print(":");
         if(heatingOn)
         {
-          lcd->setCursor(7, 1);
+          lcd->setCursor(4, 0);
           lcd->write((byte)0);
         }
       }
@@ -150,7 +162,7 @@
         lcd->print(" ");
         if(heatingOn)
         {
-          lcd->setCursor(7, 1);
+          lcd->setCursor(4, 0);
           lcd->print(" ");
         }
       }

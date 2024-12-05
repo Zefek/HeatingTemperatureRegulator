@@ -7,7 +7,7 @@ bool TemperatureSensor::received = false;
 int TemperatureSensor::interruptPin = 2;
 unsigned long TemperatureSensor::receivedMillis = 0;
 unsigned long TemperatureSensor::timings[RING_BUFFER_SIZE];
-void (*TemperatureSensor::TemperatureChanged)(double, int);
+void (*TemperatureSensor::TemperatureChanged)(double, int, int, int, bool, bool, int);
 
 bool TemperatureSensor::isSync(unsigned int idx)
 {
@@ -24,7 +24,7 @@ bool TemperatureSensor::isSync(unsigned int idx)
   return false;
 }
 
-TemperatureSensor::TemperatureSensor(int interruptPin, void (*temperatureChanged)(double, int))
+TemperatureSensor::TemperatureSensor(int interruptPin, void (*temperatureChanged)(double, int, int, int, bool, bool, int))
 {
   interruptPin = interruptPin;
   received = false;
@@ -36,7 +36,7 @@ TemperatureSensor::TemperatureSensor(int interruptPin, void (*temperatureChanged
 
 void TemperatureSensor::Init()
 {
-  digitalWrite(11, HIGH);
+  digitalWrite(3, HIGH);
   attachInterrupt(digitalPinToInterrupt(interruptPin), handler, CHANGE);
 }
 
@@ -52,11 +52,10 @@ void TemperatureSensor::handler()
   long time = micros();
   duration = time - lastTime;
   lastTime = time;
-
   // store data in ring buffer
   ringIndex = (ringIndex + 1) % RING_BUFFER_SIZE;
   timings[ringIndex] = duration;
-
+  
   // detect sync signal
   if (isSync(ringIndex)) {
     syncCount++;
@@ -82,33 +81,69 @@ void TemperatureSensor::handler()
   }
 }
 
-bool TemperatureSensor::Read(int from, int to, unsigned long* value)
+bool TemperatureSensor::Read(byte *bytes)
 {
   unsigned long temp = 0;
   bool negative = false;
   bool fail = false;
-  for(unsigned int i=(syncIndex1+from)%RING_BUFFER_SIZE; i!=(syncIndex1+to)%RING_BUFFER_SIZE; i=(i+2)%RING_BUFFER_SIZE) {
+  byte b = 0;
+  int j = 0;
+  int p = 0;
+  for(unsigned int i=(syncIndex1+0)%RING_BUFFER_SIZE; i!=(syncIndex1+80)%RING_BUFFER_SIZE; i=(i+2)%RING_BUFFER_SIZE) 
+  {
     unsigned long t0 = TemperatureSensor::timings[i], t1 = TemperatureSensor::timings[(i+1)%RING_BUFFER_SIZE];
-    if (t0>(SEP_LENGTH-100) && t0<(SEP_LENGTH+100)) {
-      if (t1>(BIT1_LENGTH-1000) && t1<(BIT1_LENGTH+1000)) {
-        temp = (temp << 1) + 1;
+    if (t0>(SEP_LENGTH-100) && t0<(SEP_LENGTH+100)) 
+    {
+      if (t1>(BIT1_LENGTH-1000) && t1<(BIT1_LENGTH+1000)) 
+      {
+        b = (b << 1) + 1;
+        j++;
       } 
-      else if (t1>(BIT0_LENGTH-1000) && t1<(BIT0_LENGTH+1000)) {
-        temp = (temp << 1) + 0;
+      else if (t1>(BIT0_LENGTH-1000) && t1<(BIT0_LENGTH+1000)) 
+      {
+        b = (b << 1) + 0;
+        j++;
       } 
-      else {
+      else
+      {
         fail = true;
+        break;
       }
     } 
-    else {
+    else 
+    {
       fail = true;
+      break;
+    }
+    if(j == 4)
+    {
+      bytes[p++] = b;
+      b = 0;
+      j = 0;
     }
   }
-  if(!fail)
-  {
-    *value = temp;
-  }
   return fail;
+}
+
+unsigned long TemperatureSensor::CheckCRC(byte *bytes, int crc)
+{
+  int rem = 0;
+  for(int i = 0; i<9; i++)
+  {
+    for(int j = 0; j < 4; j++)
+    {
+      if(rem & 0x08)
+      {
+        rem = (rem << 1) ^ 3;
+      }
+      else
+      {
+        rem <<= 1;
+      }
+    }
+    rem ^= bytes[i];
+  }
+  return (rem & 0x0F) == crc;
 }
 
 void TemperatureSensor::CheckTemperature()
@@ -117,15 +152,36 @@ void TemperatureSensor::CheckTemperature()
     // disable interrupt to avoid new data corrupting the buffer
     detachInterrupt(digitalPinToInterrupt(TemperatureSensor::interruptPin));
     // loop over the lowest 12 bits of the middle 2 bytes
-    bool fail = false;
-    unsigned long temp = 0;
-    unsigned long channel = 1;
-    fail = TemperatureSensor::Read(32, 56, &temp);
-
+    byte bytes[10];
+    bool fail = TemperatureSensor::Read(bytes);
     if (!fail) 
     {
-      TemperatureSensor::Read(72, 80, &channel);
-      TemperatureChanged(((((double)temp*0.1)-90)-32)*((double)5/9), (int)channel);
+      byte toCheckCRC[10];
+      for(int i = 0; i<10; i++)
+      {
+        toCheckCRC[i] = bytes[i];
+        Serial.print(bytes[i]);
+        Serial.print("|");
+      }
+      Serial.println("");
+      toCheckCRC[2] = toCheckCRC[9];
+      bool checkedCRC = TemperatureSensor::CheckCRC(toCheckCRC, bytes[2]);
+      if(checkedCRC)
+      {
+        unsigned long sensorId = (bytes[0] << 4) + bytes[1];
+        bool transmitedByButton = (bytes[3] & 0x08) != 0;
+        bool batteryLow = (bytes[3] & 0x04) != 0;
+        bool temperatureDown = (bytes[3] & 0x02) != 0;
+        bool temperatureUp = (bytes[3] & 0x01) != 0;
+        double temperature = ((((bytes[4] << 8) + (bytes[5] << 4) + bytes[6]) * 0.1)-90-32) * ((double)5/9);
+        int humidity = (bytes[7] * 10) + bytes[8];
+        int channel = bytes[9];
+        TemperatureChanged(temperature, channel, humidity, sensorId, transmitedByButton, batteryLow, temperatureUp? 1 : temperatureDown? -1 : 0);
+      }
+      else
+      {
+        Serial.println("CRC Failed");
+      }
       receivedMillis = millis();
     }
     received = false;
