@@ -35,6 +35,7 @@ class Display
     unsigned long lastPrint;
     unsigned long blinkCount = 0;
     bool heatingOn = false;
+    int mode = 0;
 
     void print2digits(int number);
     void printTime();
@@ -53,4 +54,5 @@ class Display
     void SetHeating(bool heatingOn);
     void SetPower(int power);
     void (*TimeChanged)(int, int);
+    void SetMode(int mode);
 };
