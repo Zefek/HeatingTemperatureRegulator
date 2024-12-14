@@ -19,6 +19,7 @@
 #define MOREHEATINGRELAYPIN 8
 #define LESSHEATINGRELAYPIN 9
 #define HEATINGPUMPRELAYPIN 10
+#define MININPUTTEMPERATURE 30
 
 void OutsideTemperatureChanged(double temperature, int channel, int humidity, int sensorId, bool transmitedByButton, bool batteryLow, int temperatureTrend);
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length);
@@ -55,6 +56,8 @@ bool autoHeating = true;
 bool thermostat = false;
 double totalPower = 0;
 int sensrId = 0;
+int mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
+int setTemperatureMode = 0; //0 - Automat, 1 - Manual
 
 void setup() {
   Serial.begin(9600);
@@ -94,54 +97,63 @@ void TimeChanged(int hours, int minutes)
 
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
 {
+  char* p = new char[length+1];
+  for(int i = 0; i<length; i++)
+  {
+    p[i] = (char)payload[i];
+  }
+  p[length] = '\0';
+  //Termostat on/off
   if(strcmp(topic, "homeassistant/devices/heater/command/thermostat") == 0)
   {
-    autoHeating = false;
     thermostat = !thermostat;
-    homeAssistant.SetSensor("OFF", "homeassistant/devices/heater/automaticHeating");
     homeAssistant.SetSensor(thermostat?"ON":"OFF", "homeassistant/devices/heater/thermostat");
   }
-  if(strcmp(topic, "homeassistant/devices/heater/command/automaticHeating") == 0)
+  //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
+  if(strcmp(topic, "homeassistant/devices/heater/command/mode") == 0)
   {
-    manualValve = false;
-    autoHeating = true;
-    homeAssistant.SetSensor("ON", "homeassistant/devices/heater/automaticHeating");
-  }
-  if(strcmp(topic, "homeassistant/devices/heater/command/valve") == 0)
-  {
-    if(!relayOn && !heatingOff)
-    {
-      manualValve = true;
-      char* p = new char[length+1];
-      for(int i = 0; i<length; i++)
-      {
-        p[i] = (char)payload[i];
-      }
-      p[length] = '\0';
-      int newValveProc;
-      sscanf(p, "%d", &newValveProc);
-      long newPosition = (long)newValveProc * 700;
-      interval = abs(position - newPosition);
-      if(newPosition - position < 0)
-      {
-        setRelay(-1);
-        direction = -1;
-      }
-      else if(newPosition - position > 0)
-      {
-        setRelay(1);
-        direction = 1;
-      }
+    if(strcmp(p, "Off") == 0)
+    {        
+      mode = 0;
     }
+    else if(strcmp(p, "Automatic") == 0)
+    {
+      mode = 1;
+    }
+    else if (strcmp(p, "Thermostat") == 0)
+    {
+      mode = 2;
+    }
+    homeAssistant.SetSensor(p, "homeassistant/devices/heater/mode");
+    lcd.SetMode(mode);
   }
+  //Mód topné křivky - Automatický, manuální
+  if(strcmp(topic, "homeassistant/devices/heater/command/settemperaturemode") == 0)
+  {
+    if(strcmp(p, "Automatic") == 0)
+    { 
+      setTemperatureMode = 0;
+    }
+    if(strcmp(p, "Manual") == 0)
+    {
+        setTemperatureMode = 1;
+    }
+    homeAssistant.SetSensor(p, "homeassistant/devices/heater/settemperaturemode");
+  }
+  //Nastavená teplota topné vody
+  if(strcmp(topic, "homeassistant/devices/heater/command/settemperature") == 0)
+  {
+    int t = 0;
+    sscanf(p, "%d", &t);
+    value = t;
+    setTemperatureMode = 1;
+    lcd.SetRequiredTemperature(value);
+    homeAssistant.SetSensor(value, "homeassistant/devices/heater/setTemperature");
+    homeAssistant.SetSensor("Manual", "homeassistant/devices/heater/settemperaturemode");
+  }
+  //Nastavení data a času
   if(strcmp(topic, "homeassistant/devices/heater/command/currentDateTime") == 0)
   {
-    char* p = new char[length+1];
-      for(int i = 0; i<length; i++)
-      {
-        p[i] = (char)payload[i];
-      }
-      p[length] = '\0';
     int day, month, year, hour, minute, second;
     sscanf(p, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
     Ds1302::DateTime dt;
@@ -152,28 +164,6 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     dt.month = month;
     dt.year = year;
     rtc.setDateTime(&dt);
-  }
-  if(strcmp(topic, "homeassistant/devices/heater/events/insidetemperaturechanged") == 0)
-  {
-      char* p = new char[length+1];
-      for(int i = 0; i<length; i++)
-      {
-        p[i] = (char)payload[i];
-      }
-      p[length] = '\0';
-      currentInsideTemperature = atof(p);
-      computeRequiredTemperature();
-  }
-  if(strcmp(topic, "homeassistant/devices/heater/events/insidetemperaturesetchanged") == 0)
-  {
-      char* p = new char[length+1];
-      for(int i = 0; i<length; i++)
-      {
-        p[i] = (char)payload[i];
-      }
-      p[length] = '\0';
-      requiredInsideTemperature = atof(p);
-      computeRequiredTemperature();
   }
 }
 
@@ -223,6 +213,10 @@ double getTemperature(double pinValue, int beta)
 
 void computeRequiredTemperature()
 {
+  if(setTemperatureMode == 1)
+  {
+    return;
+  }
   //nastavená teplota v místnosti
   double inTemp = 22.5;
   //nastavená teplota topné vody pro venkovní teplotu 0°C
@@ -235,16 +229,7 @@ void computeRequiredTemperature()
     inTemp = 21.5;
     zeroTemp = 38;
   }
-  //double newValue = (outsideTemperature * -0.005093696 * -0.005093696) + (outsideTemperature * -0.966171371) + 43.4724957;
-  //double newValue = (outsideTemperature * -0.005805978 * -0.005805978) + (outsideTemperature * -0.9839375) + 44.47618789;
   int newValue = (int)round(inTemp + (zeroTemp - inTemp) * pow((outsideTemperature - inTemp) / (double) - inTemp, 0.76923));
-  //value = (outsideTemperature * EKVITERM_SLOPE) + (getRequiredInsideTemperature() * EKVITERM_KOEF);
-  //value =  EKVITERM_KOEF * getRequiredInsideTemperature() + (1 - EKVITERM_KOEF) * outsideTemperature;
-
-  if(requiredInsideTemperature - 0.5 > currentInsideTemperature)
-  {
-    newValue += (requiredInsideTemperature - currentInsideTemperature) * 5;
-  }
 
   if(newValue < 10 || newValue > 80)
   {
@@ -262,7 +247,7 @@ void setRelay(int pDirection)
 {
   //value - celsius - 1 - nastavená 50, naměřená 40 = 50-40-1 = 9 => value > 0, direction = 1
   //value - celsius - nastavená 50, naměřená 60 = 50-60 = -10 => value < 0, direction = -1
-  if(pDirection == -1 && position > 0)
+  if(pDirection == -1)
   {
     digitalWrite(LESSHEATINGRELAYPIN, LOW);
     homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
@@ -272,7 +257,7 @@ void setRelay(int pDirection)
   }
   //value - celsis  - nastavená 50, naměřená 40 = 40-50=>10 => value > 0, direction = 1
   //value - celsius - nastavená 50, naměřená 50,68 = 50-50,68 = 0,68 - 0,5 = 0,18
-  if(pDirection == 1 && position < 140000)
+  if(pDirection == 1)
   {
     digitalWrite(MOREHEATINGRELAYPIN, LOW);
     homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
@@ -290,10 +275,43 @@ void setRelayOff()
   homeAssistant.SetSensor("OFF", "homeassistant/devices/heater/valvemovement");
 }
 
+bool ShouldBeHeatingOff()
+{
+  if(mode == 0)
+  {
+    return true;
+  }
+  if(mode == 1)
+  {
+    return outsideTemperature > 14.5 || inputTemperature < MININPUTTEMPERATURE - 1;
+  }
+  if(mode == 2)
+  {
+    return !thermostat || inputTemperature < MININPUTTEMPERATURE - 1;
+  }
+  return false;
+}
+
+bool ShouldBeHeatingOn()
+{
+  if(mode == 0)
+  {
+    return false;
+  }
+  if(mode == 1)
+  {
+    return inputTemperature > MININPUTTEMPERATURE + 1 && outsideTemperature <= 14;
+  }
+  if(mode == 2)
+  {
+    return thermostat && inputTemperature > MININPUTTEMPERATURE + 1;
+  }
+  return false;
+}
+
 void checkHeating()
 {
-  int tmpValue = 30;
-  if(!heatingOff && ((outsideTemperature > 14.5 && autoHeating) || !thermostat || inputTemperature < tmpValue - 1))
+  if(!heatingOff && ShouldBeHeatingOff())
   {
     heatingOff = true;
     digitalWrite(LESSHEATINGRELAYPIN, LOW);
@@ -305,7 +323,7 @@ void checkHeating()
     homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
     homeAssistant.SetSensor("OFF", "homeassistant/devices/heater/heater");
   }
-  if(heatingOff && inputTemperature >= tmpValue + 1 && ((outsideTemperature <= 14 && autoHeating) || thermostat))
+  if(heatingOff && ShouldBeHeatingOn())
   {
     heatingOff = false;
     digitalWrite(HEATINGPUMPRELAYPIN, LOW);

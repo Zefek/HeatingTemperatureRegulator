@@ -120,6 +120,18 @@
         lcd->write((byte)1);
       }
     }
+     
+    void Display::SetMode(int mode)
+    {
+      this->mode = mode;
+      lcd->setCursor(5, 0);
+      if(mode == 0)
+        lcd->print("O");
+      if(mode == 1)
+        lcd->print("A");
+      if(mode == 2)
+        lcd->print("T");
+    }
 
     void Display::SetHeating(bool heatingOn)
     {
