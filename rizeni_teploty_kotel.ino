@@ -57,7 +57,7 @@ bool thermostat = false;
 double totalPower = 0;
 int sensrId = 0;
 int mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
-int setTemperatureMode = 0; //0 - Automat, 1 - Manual
+int equithermalCurveZeroPoint = 41;
 
 void setup() {
   Serial.begin(9600);
@@ -127,29 +127,13 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     homeAssistant.SetSensor(p, "homeassistant/devices/heater/mode");
     lcd.SetMode(mode);
   }
-  //Mód topné křivky - Automatický, manuální
-  if(strcmp(topic, "homeassistant/devices/heater/command/settemperaturemode") == 0)
-  {
-    if(strcmp(p, "Automatic") == 0)
-    { 
-      setTemperatureMode = 0;
-    }
-    if(strcmp(p, "Manual") == 0)
-    {
-        setTemperatureMode = 1;
-    }
-    homeAssistant.SetSensor(p, "homeassistant/devices/heater/settemperaturemode");
-  }
-  //Nastavená teplota topné vody
-  if(strcmp(topic, "homeassistant/devices/heater/command/settemperature") == 0)
+  //Bod na nule v topné křivce
+  if(strcmp(topic, "homeassistant/devices/heater/command/zeroPoint") == 0)
   {
     int t = 0;
     sscanf(p, "%d", &t);
-    value = t;
-    setTemperatureMode = 1;
-    lcd.SetRequiredTemperature(value);
-    homeAssistant.SetSensor(value, "homeassistant/devices/heater/setTemperature");
-    homeAssistant.SetSensor("Manual", "homeassistant/devices/heater/settemperaturemode");
+    equithermalCurveZeroPoint = t;
+    homeAssistant.SetSensor(t, "homeassistant/devices/heater/zeroPoint");
   }
   //Nastavení data a času
   if(strcmp(topic, "homeassistant/devices/heater/command/currentDateTime") == 0)
@@ -213,15 +197,11 @@ double getTemperature(double pinValue, int beta)
 
 void computeRequiredTemperature()
 {
-  if(setTemperatureMode == 1)
-  {
-    return;
-  }
   //nastavená teplota v místnosti
   double inTemp = 22.5;
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
-  double zeroTemp = 40;
+  double zeroTemp = equithermalCurveZeroPoint;
   Ds1302::DateTime now;
   rtc.getDateTime(&now);
   if(now.hour < 15 || now.hour >= 23)

@@ -141,7 +141,7 @@
         if(!heatingOn)
         {
           lcd->setCursor(4, 0);
-          lcd->print(" ");
+          lcd->print("");
         }
       }
     }
