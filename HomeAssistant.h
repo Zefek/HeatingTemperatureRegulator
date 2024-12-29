@@ -19,13 +19,15 @@ class HomeAssistant
       WiFiEspClient* espClient;
       PubSubClient* mqttClient;
       void (*callback)(char*, uint8_t*, unsigned int);
+      void (*onConnected)(bool success);
+      unsigned long nextConnectionTime = 0;
     
     public: 
-      HomeAssistant(char* ssid, char* wifiPassword, char* mqttUsername, char* mqttPassword, char* mqttServer, char* deviceId, void (*callback)(char*, uint8_t*, unsigned int));
+      HomeAssistant(char* ssid, char* wifiPassword, char* mqttUsername, char* mqttPassword, char* mqttServer, char* deviceId, void (*callback)(char*, uint8_t*, unsigned int), void (*onConnected)(bool success));
       int Connect();
-      void SetSensor(int value, const char* topic);
-      void SetSensor(double value, const char* topic);
-      void SetSensor(const char* value, const char* topic);
+      void SetSensor(int value, const char* topic, bool retain = false);
+      void SetSensor(double value, const char* topic, bool retain = false);
+      void SetSensor(const char* value, const char* topic, bool retain = false);
       void Subscribe(const char* topic);
       bool Connected();
       void Init();

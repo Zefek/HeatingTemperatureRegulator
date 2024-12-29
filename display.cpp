@@ -79,7 +79,7 @@
       {
         this->requiredTemperature = requiredTemperature;
         lcd->setCursor(0, 0);
-        lcd->print("      ");
+        lcd->print("   ");
         lcd->setCursor(0, 0);
         lcd->print(requiredTemperature);
         lcd->write((byte)1);
@@ -114,7 +114,7 @@
       {
         this->currentHeatingTemperature = currentHeatingTemperature;
         lcd->setCursor(0, 1);
-        lcd->print("      ");
+        lcd->print("   ");
         lcd->setCursor(0, 1);
         lcd->print(currentHeatingTemperature);
         lcd->write((byte)1);
@@ -141,7 +141,7 @@
         if(!heatingOn)
         {
           lcd->setCursor(4, 0);
-          lcd->print("");
+          lcd->print(" ");
         }
       }
     }

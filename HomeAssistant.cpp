@@ -7,7 +7,7 @@
 SoftwareSerial Serial1(13, 12); // RX, TX
 #endif
 
- HomeAssistant::HomeAssistant(char* ssid, char* wifiPassword, char* mqttUsername, char* mqttPassword, char* mqttServer, char* deviceId, void (*callback)(char*, uint8_t*, unsigned int))
+ HomeAssistant::HomeAssistant(char* ssid, char* wifiPassword, char* mqttUsername, char* mqttPassword, char* mqttServer, char* deviceId, void (*callback)(char*, uint8_t*, unsigned int), void (*onConnected)(bool success))
 {
   this->ssid = ssid;
   this->wifiPassword = wifiPassword;
@@ -17,6 +17,7 @@ SoftwareSerial Serial1(13, 12); // RX, TX
   this->deviceId = deviceId;
   this->status = WL_IDLE_STATUS;
   this->callback = callback;
+  this->onConnected = onConnected;
 }
 
 void HomeAssistant::Init()
@@ -27,12 +28,15 @@ void HomeAssistant::Init()
   mqttClient->setServer(mqttServer, 1883);
   mqttClient->setCallback(callback);
   mqttClient->setKeepAlive(30);
+  mqttClient->setSocketTimeout(15);
 }
 
 int HomeAssistant::Connect()
 {
-  if (WiFi.status() == WL_NO_SHIELD) 
+  status = WiFi.status();
+  if (status == WL_NO_SHIELD) 
   {
+    onConnected(false);
     return WIFI_SHIELD_NOT_PRESENT;
   }
   if (status != WL_CONNECTED) 
@@ -41,47 +45,55 @@ int HomeAssistant::Connect()
   }
   if (status != WL_CONNECTED) 
   {
+    onConnected(false);
     return WIFI_NOT_CONNECTED;
   }
   if (!mqttClient->connected()) 
   {
     if (mqttClient->connect(deviceId, mqttUsername, mqttPassword)) 
     {
+      onConnected(true);
       return MQTT_CONNECTED;
     }
     else
     {
+      onConnected(false);
       return MQTT_NOT_CONNECTED;
     }
   }
+  onConnected(true);
   return MQTT_CONNECTED;
 }
 
-void HomeAssistant::SetSensor(int value, const char* topic)
+void HomeAssistant::SetSensor(int value, const char* topic, bool retain = false)
 {
   char cstr[16];
   dtostrf(value, 6, 2, cstr);
-  SetSensor(cstr, topic);
+  SetSensor(cstr, topic, retain);
 }
 
-void HomeAssistant::SetSensor(double value, const char* topic)
+void HomeAssistant::SetSensor(double value, const char* topic, bool retain = false)
 {
   char cstr[16];
   dtostrf(value, 6, 2, cstr);
-  SetSensor(cstr, topic);
+  SetSensor(cstr, topic, retain);
 }
 
-void HomeAssistant::SetSensor(const char* value, const char* topic)
+void HomeAssistant::SetSensor(const char* value, const char* topic, bool retain = false)
 {
   if(Connect() == MQTT_CONNECTED)
   {
-    mqttClient->publish(topic, value);
+    mqttClient->loop();
+    mqttClient->publish(topic, value, retain);
+    mqttClient->loop();
   }
 }
 
 void HomeAssistant::Subscribe(const char* topic)
 {
+  mqttClient->loop();
   mqttClient->subscribe(topic);
+  mqttClient->loop();
 }
 
 bool HomeAssistant::Connected()
