@@ -7,7 +7,7 @@
 SoftwareSerial Serial1(13, 12); // RX, TX
 #endif
 
- HomeAssistant::HomeAssistant(char* ssid, char* wifiPassword, char* mqttUsername, char* mqttPassword, char* mqttServer, char* deviceId, void (*callback)(char*, uint8_t*, unsigned int), void (*onConnected)(bool success))
+HomeAssistant::HomeAssistant(char* ssid, char* wifiPassword, char* mqttUsername, char* mqttPassword, char* mqttServer, char* deviceId, void (*callback)(char*, uint8_t*, unsigned int), void (*onConnected)(bool success))
 {
   this->ssid = ssid;
   this->wifiPassword = wifiPassword;

@@ -131,7 +131,6 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Termostat on/off
   if(strcmp(topic, "homeassistant/devices/heater/command/thermostat") == 0)
   {
-    Serial.println(p);
     if(strcmp(p, "OFF") == 0)
     {
        thermostat = false;
