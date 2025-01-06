@@ -60,8 +60,9 @@ int equithermalCurveZeroPoint = 41;
 double insideTemperature = 23;
 
 void setup() {
-  Serial.begin(115200);
-  Serial1.begin(115200);
+  Serial.begin(57600);
+  //AT+UART_DEF=57600,8,1,0,0
+  Serial1.begin(57600);
   byte msb = EEPROM.read(0);
   byte lsb = EEPROM.read(1);
   sensrId = (msb << 4) + lsb;
@@ -87,16 +88,23 @@ void setup() {
   readInputTemperature();
   computeEnergy();
   lcd.Print();
-  wdt_enable(WDTO_8S);
+  //wdt_enable(WDTO_8S);
 }
 
 void OnMQTTConnected(bool success)
 {
   if(success)
   {
-    homeAssistant.Subscribe("homeassistant/devices/heater/command/*");
-    homeAssistant.Subscribe("homeassistant/status");
-    homeAssistant.Subscribe("homeassistant/devices/heater/events/*");
+    //homeAssistant.SetSensor(equithermalCurveZeroPoint, "homeassistant/devices/heater/zeroPoint");
+    //homeAssistant.SetSensor(thermostat? "ON":"OFF", "homeassistant/devices/heater/command/thermostat");
+    //homeAssistant.SetSensor(mode == 0? "Off": mode == 1? "Automatic" : "Thermostat", "homeassistant/devices/heater/command/mode");
+
+    //homeAssistant.Subscribe("homeassistant/devices/heater/command/*");
+    homeAssistant.Subscribe("homeassistant/devices/heater/command/thermostat");
+    homeAssistant.Subscribe("homeassistant/devices/heater/command/mode");
+    homeAssistant.Subscribe("homeassistant/devices/heater/command/zeroPoint");
+    homeAssistant.Subscribe("homeassistant/devices/heater/command/currentDateTime");
+    homeAssistant.Subscribe("homeassistant/devices/heater/events/insidetemperaturesetchanged");
   }
   if(!success)
   {
@@ -131,6 +139,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     {
       thermostat = true;
     }
+    homeAssistant.SetSensor(p, "homeassistant/devices/heater/thermostat");
   }
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
   if(strcmp(topic, "homeassistant/devices/heater/command/mode") == 0)
@@ -147,6 +156,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     {
       mode = 2;
     }
+    homeAssistant.SetSensor(p, "homeassistant/devices/heater/mode");
     lcd.SetMode(mode);
   }
   //Bod na nule v topné křivce
@@ -155,6 +165,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     int t = 0;
     sscanf(p, "%d", &t);
     equithermalCurveZeroPoint = t;
+    homeAssistant.SetSensor(p, "homeassistant/devices/heater/zeroPoint");
   }
   //Nastavení data a času
   if(strcmp(topic, "homeassistant/devices/heater/command/currentDateTime") == 0)
@@ -246,7 +257,6 @@ void setRelay(int pDirection)
   if(pDirection == -1)
   {
     digitalWrite(LESSHEATINGRELAYPIN, LOW);
-    homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
     relayOn = true;
     relayOnMillis = currentMillis;
     direction = -1;
@@ -256,7 +266,6 @@ void setRelay(int pDirection)
   if(pDirection == 1)
   {
     digitalWrite(MOREHEATINGRELAYPIN, LOW);
-    homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
     relayOn = true;
     relayOnMillis = currentMillis;
     direction = 1;
@@ -268,7 +277,6 @@ void setRelayOff()
   digitalWrite(MOREHEATINGRELAYPIN, HIGH);
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   relayOn = false;
-  homeAssistant.SetSensor("OFF", "homeassistant/devices/heater/valvemovement");
 }
 
 bool ShouldBeHeatingOff()
@@ -316,7 +324,6 @@ void checkHeating()
     direction = -1;
     relayOn = true;
     relayOnMillis = currentMillis;
-    homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
     homeAssistant.SetSensor("OFF", "homeassistant/devices/heater/heater", true);
   }
   if(heatingOff && ShouldBeHeatingOn())
