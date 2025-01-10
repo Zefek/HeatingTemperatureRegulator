@@ -5,6 +5,7 @@
 #include "TemperatureSensor.h"
 #include "HomeAssistant.h"
 #include "config.h"
+#include <avr/wdt.h>
 
 #define I2C_ADDR            0x27
 #define LCD_COLUMNS         16
@@ -25,52 +26,66 @@ void OutsideTemperatureChanged(double temperature, int channel, int humidity, in
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length);
 void TimeChanged(int hours, int minutes);
 void computeRequiredTemperature();
+void OnMQTTConnected(bool success);
 
+/*
+1 - currentTemperature
+2 - inputTemperature
+3 - returnTempareture
+4 - setTemperature
+5 - valve
+6 - heater
+7 - acumulator temperature 1
+8 - acumulator temperature 2
+9 - acumulator temperature 3
+10 - acumulator temperature 4
+*/
+uint8_t states[10];
 
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TemperatureSensor outsideTemperatureSensor(2, OutsideTemperatureChanged);
-HomeAssistant homeAssistant(WifiSSID, WifiPassword, MQTTUsername, MQTTPassword, MQTTHost, "Heating", MQTTMessageReceive);
+HomeAssistant homeAssistant(WifiSSID, WifiPassword, MQTTUsername, MQTTPassword, MQTTHost, "Heating", MQTTMessageReceive, OnMQTTConnected);
 unsigned long relayOnMillis = 0;
 unsigned long relayOffMillis = 0;
 unsigned long currentMillis = 0;
 unsigned long temperatureReadMillis = 0;
 unsigned long lastMQTTSendMillis = 0;
-unsigned long lastMQTTConnectTry = 0;
 long interval = 0;
 long position = 70000;
 bool relayOn = false;
 double value = 25;
 double celsius = 25;
-double retCelsius = 25;
 double celsiusAfterSet = 25;
 short direction = 0;
 bool heatingOff = true;
-double inputTemperature = 25;
 double outsideTemperature = 14;
-double currentInsideTemperature = 22;
-double requiredInsideTemperature = 22;
 int sensor = 1;
 bool manualValve = false;
 bool autoHeating = true;
 bool thermostat = false;
 double totalPower = 0;
-int sensrId = 0;
-int mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
-int setTemperatureMode = 0; //0 - Automat, 1 - Manual
+uint8_t sensrId = 0;
+uint8_t mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
+uint8_t equithermalCurveZeroPoint = 41;
+double insideTemperature = 23;
 
 void setup() {
-  Serial.begin(9600);
-  Serial1.begin(115200);
+  Serial.begin(57600);
+  //AT+UART_DEF=57600,8,1,0,0
+  Serial1.begin(57600);
   byte msb = EEPROM.read(0);
   byte lsb = EEPROM.read(1);
   sensrId = (msb << 4) + lsb;
   Serial.print("Sensor Id: ");
   Serial.println(sensrId);
-  homeAssistant.Init();
   rtc.init();
   lcd.Init(&rtc, TimeChanged);
   lcd.BackLight();
+  outsideTemperatureSensor.Init();
+  homeAssistant.Init();
+  homeAssistant.Connect();
+  delay(1000);
   pinMode(MOREHEATINGRELAYPIN, OUTPUT);
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
   pinMode(HEATINGPUMPRELAYPIN, OUTPUT);
@@ -78,16 +93,32 @@ void setup() {
   digitalWrite(MOREHEATINGRELAYPIN, HIGH);
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
-  int s = homeAssistant.Connect();
-  homeAssistant.Subscribe("homeassistant/devices/heater/command/*");
-  homeAssistant.Subscribe("homeassistant/status");
-  homeAssistant.Subscribe("homeassistant/devices/heater/events/*");
-  delay(1000);
-  outsideTemperatureSensor.Init();
-  lcd.SetCurrentHeatingTemperature(celsius);
-  lcd.SetInputTemperature(inputTemperature);
-  lcd.SetOutTemperature(outsideTemperature);
-  computeRequiredTemperature();
+  lcd.SetMode(mode);
+  readCurrentHeatingTemperature();
+  readCurrentReturnTemperature();
+  readInputTemperature();
+  lcd.Print();
+  //wdt_enable(WDTO_8S);
+}
+
+void OnMQTTConnected(bool success)
+{
+  if(success)
+  {
+    //homeAssistant.Subscribe("homeassistant/devices/heater/command/*");
+    homeAssistant.Subscribe("cmd/thermostat");
+    homeAssistant.Subscribe("cmd/mode");
+    homeAssistant.Subscribe("cmd/zeroPoint");
+    homeAssistant.Subscribe("cmd/currentDateTime");
+    homeAssistant.Subscribe("events/insidetemperaturesetchanged");
+  }
+  if(!success)
+  {
+    mode = 1;
+    lcd.SetMode(mode);
+    equithermalCurveZeroPoint = 41;
+    insideTemperature = 23;
+  }
 }
 
 void TimeChanged(int hours, int minutes)
@@ -104,13 +135,20 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   }
   p[length] = '\0';
   //Termostat on/off
-  if(strcmp(topic, "homeassistant/devices/heater/command/thermostat") == 0)
+  if(strcmp(topic, "cmd/thermostat") == 0)
   {
-    thermostat = !thermostat;
-    homeAssistant.SetSensor(thermostat?"ON":"OFF", "homeassistant/devices/heater/thermostat");
+    Serial.println(p);
+    if(strcmp(p, "OFF") == 0)
+    {
+       thermostat = false;
+    }
+    else if(strcmp(p, "ON") == 0)
+    {
+      thermostat = true;
+    }
   }
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
-  if(strcmp(topic, "homeassistant/devices/heater/command/mode") == 0)
+  if(strcmp(topic, "cmd/mode") == 0)
   {
     if(strcmp(p, "Off") == 0)
     {        
@@ -124,35 +162,17 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     {
       mode = 2;
     }
-    homeAssistant.SetSensor(p, "homeassistant/devices/heater/mode");
     lcd.SetMode(mode);
   }
-  //Mód topné křivky - Automatický, manuální
-  if(strcmp(topic, "homeassistant/devices/heater/command/settemperaturemode") == 0)
-  {
-    if(strcmp(p, "Automatic") == 0)
-    { 
-      setTemperatureMode = 0;
-    }
-    if(strcmp(p, "Manual") == 0)
-    {
-        setTemperatureMode = 1;
-    }
-    homeAssistant.SetSensor(p, "homeassistant/devices/heater/settemperaturemode");
-  }
-  //Nastavená teplota topné vody
-  if(strcmp(topic, "homeassistant/devices/heater/command/settemperature") == 0)
+  //Bod na nule v topné křivce
+  if(strcmp(topic, "heater/cmd/zeroPoint") == 0)
   {
     int t = 0;
     sscanf(p, "%d", &t);
-    value = t;
-    setTemperatureMode = 1;
-    lcd.SetRequiredTemperature(value);
-    homeAssistant.SetSensor(value, "homeassistant/devices/heater/setTemperature");
-    homeAssistant.SetSensor("Manual", "homeassistant/devices/heater/settemperaturemode");
+    equithermalCurveZeroPoint = t;
   }
   //Nastavení data a času
-  if(strcmp(topic, "homeassistant/devices/heater/command/currentDateTime") == 0)
+  if(strcmp(topic, "heater/cmd/currentDateTime") == 0)
   {
     int day, month, year, hour, minute, second;
     sscanf(p, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
@@ -164,6 +184,10 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     dt.month = month;
     dt.year = year;
     rtc.setDateTime(&dt);
+  }
+  if(strcmp(topic, "events/insidetemperaturesetchanged") == 0)
+  {
+    insideTemperature = atof(p);
   }
 }
 
@@ -186,23 +210,17 @@ void OutsideTemperatureChanged(double temperature, int channel, int humidity, in
   
   if(channel == 1 && sensrId == sensorId)
   {
-    //if(outsideTemperature != temperature)
-    {
-      outsideTemperature = temperature;
-      JsonDocument doc;
-      doc["t"] = temperature;
-      doc["h"] = humidity;
-      doc["b"] = batteryLow;
-      doc["tt"] = temperatureTrend;
-      String output;
-      serializeJson(doc, output);
-      lcd.SetOutTemperature(temperature);
-
-      homeAssistant.SetSensor(output.c_str(), "homeassistant/devices/heater/outsideTemperature");
-      Serial.println(output);
-      lcd.SetOutTemperature(temperature);
-      computeRequiredTemperature();
-    }
+    outsideTemperature = temperature;
+    JsonDocument doc;
+    doc["t"] = temperature;
+    doc["h"] = humidity;
+    doc["b"] = batteryLow;
+    doc["tt"] = temperatureTrend;
+    String output;
+    serializeJson(doc, output);
+    homeAssistant.SetSensor(output.c_str(), "heater/outsideTemperature", true);
+    lcd.SetOutTemperature(temperature);
+    computeRequiredTemperature();
   }
 }
 
@@ -213,23 +231,16 @@ double getTemperature(double pinValue, int beta)
 
 void computeRequiredTemperature()
 {
-  if(setTemperatureMode == 1)
-  {
-    return;
-  }
-  //nastavená teplota v místnosti
-  double inTemp = 22.5;
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
-  double zeroTemp = 40;
+  double zeroTemp = equithermalCurveZeroPoint;
   Ds1302::DateTime now;
   rtc.getDateTime(&now);
   if(now.hour < 15 || now.hour >= 23)
   {
-    inTemp = 21.5;
-    zeroTemp = 38;
+    zeroTemp = equithermalCurveZeroPoint - 4;
   }
-  int newValue = (int)round(inTemp + (zeroTemp - inTemp) * pow((outsideTemperature - inTemp) / (double) - inTemp, 0.76923));
+  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperature - insideTemperature) / (double) - insideTemperature, 0.76923));
 
   if(newValue < 10 || newValue > 80)
   {
@@ -239,7 +250,7 @@ void computeRequiredTemperature()
   {
     value = newValue;
     lcd.SetRequiredTemperature(value);
-    homeAssistant.SetSensor(value, "homeassistant/devices/heater/setTemperature");
+    states[3] =  value;
   }
 }
 
@@ -250,7 +261,6 @@ void setRelay(int pDirection)
   if(pDirection == -1)
   {
     digitalWrite(LESSHEATINGRELAYPIN, LOW);
-    homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
     relayOn = true;
     relayOnMillis = currentMillis;
     direction = -1;
@@ -260,7 +270,6 @@ void setRelay(int pDirection)
   if(pDirection == 1)
   {
     digitalWrite(MOREHEATINGRELAYPIN, LOW);
-    homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
     relayOn = true;
     relayOnMillis = currentMillis;
     direction = 1;
@@ -272,7 +281,6 @@ void setRelayOff()
   digitalWrite(MOREHEATINGRELAYPIN, HIGH);
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   relayOn = false;
-  homeAssistant.SetSensor("OFF", "homeassistant/devices/heater/valvemovement");
 }
 
 bool ShouldBeHeatingOff()
@@ -283,11 +291,11 @@ bool ShouldBeHeatingOff()
   }
   if(mode == 1)
   {
-    return outsideTemperature > 14.5 || inputTemperature < MININPUTTEMPERATURE - 1;
+    return outsideTemperature > 14.5 || states[1] < MININPUTTEMPERATURE - 1;
   }
   if(mode == 2)
   {
-    return !thermostat || inputTemperature < MININPUTTEMPERATURE - 1;
+    return !thermostat || states[1] < MININPUTTEMPERATURE - 1;
   }
   return false;
 }
@@ -300,11 +308,11 @@ bool ShouldBeHeatingOn()
   }
   if(mode == 1)
   {
-    return inputTemperature > MININPUTTEMPERATURE + 1 && outsideTemperature <= 14;
+    return states[1] > MININPUTTEMPERATURE + 1 && outsideTemperature <= 14;
   }
   if(mode == 2)
   {
-    return thermostat && inputTemperature > MININPUTTEMPERATURE + 1;
+    return thermostat && states[1] > MININPUTTEMPERATURE + 1;
   }
   return false;
 }
@@ -320,14 +328,13 @@ void checkHeating()
     direction = -1;
     relayOn = true;
     relayOnMillis = currentMillis;
-    homeAssistant.SetSensor("ON", "homeassistant/devices/heater/valvemovement");
-    homeAssistant.SetSensor("OFF", "homeassistant/devices/heater/heater");
+    states[5] = 0;
   }
   if(heatingOff && ShouldBeHeatingOn())
   {
     heatingOff = false;
+    states[5] = 1;
     digitalWrite(HEATINGPUMPRELAYPIN, LOW);
-    homeAssistant.SetSensor("ON", "homeassistant/devices/heater/heater");
   }
   lcd.SetHeating(!heatingOff);
 }
@@ -339,15 +346,11 @@ void readInputTemperature()
   {
     return;
   }
-  if((int)round(inputTemperature) != (int)round(newInputTemperature))
+  if(states[1] != (int)round(newInputTemperature))
   { 
-    lcd.SetInputTemperature((int)round(inputTemperature));
-  }
-  if(newInputTemperature < inputTemperature - 0.5 || newInputTemperature > inputTemperature + 0.5)
-  {
-    inputTemperature = newInputTemperature;
-  }
-  
+    lcd.SetInputTemperature((int)round(newInputTemperature));
+    states[1] = (uint8_t)round(newInputTemperature);
+  }  
 }
 
 void readCurrentHeatingTemperature()
@@ -361,6 +364,7 @@ void readCurrentHeatingTemperature()
   {
     celsius = newCelsius;
     lcd.SetCurrentHeatingTemperature((int)round(celsius));
+    states[0] = (uint8_t)round(celsius);
   }
 }
 
@@ -371,44 +375,27 @@ void readCurrentReturnTemperature()
   {
     return;
   }
-  if(newCelsius < retCelsius - 0.5 || newCelsius > retCelsius + 0.5)
+  if(newCelsius < states[2] - 0.5 || newCelsius > states[2] + 0.5)
   {
-    retCelsius = newCelsius;
+    states[2] = (uint8_t)round(newCelsius);
   }
-}
-
-void computeEnergy()
-{
-  //Wh
-  totalPower += max(0, (celsius - retCelsius) * 4180 / 3600);
-  int power = (int)max(0, (celsius - retCelsius) * 4180 / 3600);
-  lcd.SetPower(power);
 }
 
 void sendToHomeAssistant()
 {
-  if(currentMillis - lastMQTTSendMillis > 15000)
+  if(currentMillis - lastMQTTSendMillis > 20000)
   {
-    switch(sensor)
-    {
-      case 1 : homeAssistant.SetSensor(inputTemperature, "homeassistant/devices/heater/inputTemperature"); break;
-      case 2 : homeAssistant.SetSensor(celsius, "homeassistant/devices/heater/currentTemperature"); break;
-      case 3 : homeAssistant.SetSensor(retCelsius, "homeassistant/devices/heater/returnTemperature"); break;
-      case 4 : homeAssistant.SetSensor(totalPower, "homeassistant/devices/heater/totalPower"); totalPower = 0; break;
-    }
-    sensor = sensor == 4 ? 1 : sensor+1;
+    homeAssistant.SetSensor(states, 10, "heater/state", true);
     lastMQTTSendMillis = currentMillis;
   }
 }
 
 void loop() {
+  wdt_reset();
   currentMillis = millis();
   if(!homeAssistant.Loop())
   {
     homeAssistant.Connect();
-    homeAssistant.Subscribe("homeassistant/devices/heater/command/*");
-    homeAssistant.Subscribe("homeassistant/status");
-    homeAssistant.Subscribe("homeassistant/devices/heater/events/*");
   }
   
   outsideTemperatureSensor.CheckTemperature();
@@ -418,7 +405,6 @@ void loop() {
     readCurrentHeatingTemperature();
     readCurrentReturnTemperature();
     readInputTemperature();
-    computeEnergy();
     temperatureReadMillis = currentMillis;
   }
   sendToHomeAssistant();
@@ -431,7 +417,7 @@ void loop() {
     setRelayOff();
     position += interval * direction;
     position = min(max(position, 0), 70000);
-    homeAssistant.SetSensor((int)round(position / (double)700), "homeassistant/devices/heater/valve");
+    states[4] = (uint8_t)round(position/(double)700);
     relayOffMillis = currentMillis;
     celsiusAfterSet = celsius;
   }
