@@ -89,6 +89,16 @@ void HomeAssistant::SetSensor(const char* value, const char* topic, bool retain 
   }
 }
 
+void HomeAssistant::SetSensor(uint8_t* payload, unsigned int plength, const char* topic, bool retain = false)
+{
+  if(Connect() == MQTT_CONNECTED)
+  {
+    mqttClient->loop();
+    mqttClient->publish(topic, payload, plength, retain);
+    mqttClient->loop();
+  }
+}
+
 void HomeAssistant::Subscribe(const char* topic)
 {
   mqttClient->loop();
