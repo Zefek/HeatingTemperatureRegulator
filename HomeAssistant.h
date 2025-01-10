@@ -26,6 +26,7 @@ class HomeAssistant
       HomeAssistant(char* ssid, char* wifiPassword, char* mqttUsername, char* mqttPassword, char* mqttServer, char* deviceId, void (*callback)(char*, uint8_t*, unsigned int), void (*onConnected)(bool success));
       int Connect();
       void SetSensor(int value, const char* topic, bool retain = false);
+      void SetSensor(uint8_t* payload, unsigned int plength, const char* topic, bool retain = false);
       void SetSensor(double value, const char* topic, bool retain = false);
       void SetSensor(const char* value, const char* topic, bool retain = false);
       void Subscribe(const char* topic);
