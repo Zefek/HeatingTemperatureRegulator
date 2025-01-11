@@ -6,6 +6,7 @@
 #include "HomeAssistant.h"
 #include "config.h"
 #include <avr/wdt.h>
+#include "TemperatureSensors.h"
 
 #define I2C_ADDR            0x27
 #define LCD_COLUMNS         16
@@ -21,6 +22,7 @@
 #define LESSHEATINGRELAYPIN 9
 #define HEATINGPUMPRELAYPIN 10
 #define MININPUTTEMPERATURE 30
+#define ONEWIREBUSPIN       7
 
 void OutsideTemperatureChanged(double temperature, int channel, int humidity, int sensorId, bool transmitedByButton, bool batteryLow, int temperatureTrend);
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length);
@@ -46,11 +48,13 @@ Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TemperatureSensor outsideTemperatureSensor(2, OutsideTemperatureChanged);
 HomeAssistant homeAssistant(WifiSSID, WifiPassword, MQTTUsername, MQTTPassword, MQTTHost, "Heating", MQTTMessageReceive, OnMQTTConnected);
+TemperatureSensors tempSensors(ONEWIREBUSPIN);
 unsigned long relayOnMillis = 0;
 unsigned long relayOffMillis = 0;
 unsigned long currentMillis = 0;
 unsigned long temperatureReadMillis = 0;
 unsigned long lastMQTTSendMillis = 0;
+unsigned long lastRegulatorMeassurement = 0;
 long interval = 0;
 long position = 70000;
 bool relayOn = false;
@@ -61,8 +65,6 @@ short direction = 0;
 bool heatingOff = true;
 double outsideTemperature = 14;
 int sensor = 1;
-bool manualValve = false;
-bool autoHeating = true;
 bool thermostat = false;
 double totalPower = 0;
 uint8_t sensrId = 0;
@@ -83,6 +85,7 @@ void setup() {
   lcd.Init(&rtc, TimeChanged);
   lcd.BackLight();
   outsideTemperatureSensor.Init();
+  tempSensors.Init();
   homeAssistant.Init();
   homeAssistant.Connect();
   delay(1000);
@@ -249,7 +252,7 @@ void computeRequiredTemperature()
   if(newValue != value)
   {
     value = newValue;
-    lcd.SetRequiredTemperature(value);
+    lcd.SetRequiredTemperature((uint8_t)round(value));
     states[3] =  value;
   }
 }
@@ -341,15 +344,11 @@ void checkHeating()
 
 void readInputTemperature()
 {
-  double newInputTemperature = getTemperature(analogRead(OUTTEMPPIN), 3950);
-  if(newInputTemperature < 0 || newInputTemperature > 100)
-  {
-    return;
-  }
-  if(states[1] != (int)round(newInputTemperature))
+  uint8_t newInputTemperature = tempSensors.GetAcumulatorOutputTemperature();
+  if(states[1] != newInputTemperature)
   { 
-    lcd.SetInputTemperature((int)round(newInputTemperature));
-    states[1] = (uint8_t)round(newInputTemperature);
+    lcd.SetInputTemperature(newInputTemperature);
+    states[1] = newInputTemperature;
   }  
 }
 
@@ -363,7 +362,7 @@ void readCurrentHeatingTemperature()
   if(newCelsius < celsius - 0.5 || newCelsius > celsius + 0.5)
   {
     celsius = newCelsius;
-    lcd.SetCurrentHeatingTemperature((int)round(celsius));
+    lcd.SetCurrentHeatingTemperature((uint8_t)round(celsius));
     states[0] = (uint8_t)round(celsius);
   }
 }
@@ -379,6 +378,14 @@ void readCurrentReturnTemperature()
   {
     states[2] = (uint8_t)round(newCelsius);
   }
+}
+
+void readAcumulatorTemperatures()
+{
+  states[6] = tempSensors.GetAcumulator1Temperature();
+  states[7] = tempSensors.GetAcumulator2Temperature();
+  states[8] = tempSensors.GetAcumulator3Temperature();
+  states[9] = tempSensors.GetAcumulator4Temperature();
 }
 
 void sendToHomeAssistant()
@@ -399,14 +406,16 @@ void loop() {
   }
   
   outsideTemperatureSensor.CheckTemperature();
-  lcd.Print();
+  tempSensors.Loop();
   if(currentMillis - temperatureReadMillis > 1000)
   {
     readCurrentHeatingTemperature();
     readCurrentReturnTemperature();
     readInputTemperature();
+    readAcumulatorTemperatures();
     temperatureReadMillis = currentMillis;
   }
+  lcd.Print();
   sendToHomeAssistant();
   if(!relayOn)
   {
@@ -422,13 +431,12 @@ void loop() {
     celsiusAfterSet = celsius;
   }
  
-  if(!heatingOff && !relayOn && currentMillis - relayOffMillis > 10000 && !manualValve)
+  if(!heatingOff && !relayOn && currentMillis - lastRegulatorMeassurement > 5000)
   {
     long intervalTmp = (value - celsius) * 700 - (celsius - celsiusAfterSet) * 1500;
     interval = min(abs(intervalTmp), 70000);
     if(interval >= 400)
     {
-
       if(intervalTmp <= 0)
       {
         setRelay(-1);
@@ -438,5 +446,6 @@ void loop() {
         setRelay(1);
       }
     }
+    lastRegulatorMeassurement = currentMillis;
   }
 }

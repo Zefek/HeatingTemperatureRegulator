@@ -25,34 +25,33 @@ class Display
 	  0b00010
   };
     LiquidCrystal_I2C *lcd;//(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
-    double requiredTemperature = 0;
-    double outTemperature = 0;
-    int inputTemperature = 0;
-    int currentHeatingTemperature = 0;
-    int hours = 0;
-    int minutes = 0;
+    uint8_t requiredTemperature = 0;
+    uint8_t outTemperature = 0;
+    uint8_t inputTemperature = 0;
+    uint8_t currentHeatingTemperature = 0;
+    uint8_t hours = 0;
+    uint8_t minutes = 0;
     Ds1302* rtc;
     unsigned long lastPrint;
     unsigned long blinkCount = 0;
     bool heatingOn = false;
-    int mode = 0;
+    uint8_t mode = 0;
 
-    void print2digits(int number);
+    void print2digits(uint8_t number);
     void printTime();
     void printOutTemperature();
     void Blink();
 
   public:
     Display(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
-    void Init(Ds1302* rtc, void (*timeChanged)(int, int));
+    void Init(Ds1302* rtc, void (*timeChanged)(uint8_t, uint8_t));
     void BackLight();
-    void SetRequiredTemperature(int requiredTempareture);
+    void SetRequiredTemperature(uint8_t requiredTempareture);
     void Print();
-    void SetCurrentHeatingTemperature(int currentHeatingTemperature);
-    void SetInputTemperature(int inputTemperature);
+    void SetCurrentHeatingTemperature(uint8_t currentHeatingTemperature);
+    void SetInputTemperature(uint8_t inputTemperature);
     void SetOutTemperature(double outTemperature);
     void SetHeating(bool heatingOn);
-    void SetPower(int power);
-    void (*TimeChanged)(int, int);
-    void SetMode(int mode);
+    void (*TimeChanged)(uint8_t, uint8_t);
+    void SetMode(uint8_t mode);
 };
