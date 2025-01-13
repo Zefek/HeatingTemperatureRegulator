@@ -24,11 +24,25 @@
 #define MININPUTTEMPERATURE 30
 #define ONEWIREBUSPIN       7
 
-void OutsideTemperatureChanged(double temperature, int channel, int humidity, int sensorId, bool transmitedByButton, bool batteryLow, int temperatureTrend);
+void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length);
 void TimeChanged(int hours, int minutes);
 void computeRequiredTemperature();
 void OnMQTTConnected(bool success);
+
+void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
+    unsigned char *out_ptr = output;
+    int j = 0;
+    for(int i = 0; i < length; i++)
+    {
+      uint8_t first = input[i] >> 4;
+      uint8_t second = input[i] & 0x0F;
+      output[j++] = first<10? (char)('0'+first):(char)('7'+first);
+      output[j++] = second<10? (char)('0'+second):(char)('7'+second);   
+    }
+
+    output[j] = '\0'; // Null-terminate the UTF-8 string
+}
 
 /*
 1 - currentTemperature
@@ -71,14 +85,13 @@ uint8_t sensrId = 0;
 uint8_t mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
 uint8_t equithermalCurveZeroPoint = 41;
 double insideTemperature = 23;
+unsigned char utf8Buffer[32];
 
 void setup() {
   Serial.begin(57600);
   //AT+UART_DEF=57600,8,1,0,0
   Serial1.begin(57600);
-  byte msb = EEPROM.read(0);
-  byte lsb = EEPROM.read(1);
-  sensrId = (msb << 4) + lsb;
+  sensrId = EEPROM.read(0);
   Serial.print("Sensor Id: ");
   Serial.println(sensrId);
   rtc.init();
@@ -194,7 +207,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   }
 }
 
-void OutsideTemperatureChanged(double temperature, int channel, int humidity, int sensorId, bool transmitedByButton, bool batteryLow, int temperatureTrend)
+void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton)
 {
   if(temperature < -35 && temperature > 50)
   {
@@ -203,25 +216,15 @@ void OutsideTemperatureChanged(double temperature, int channel, int humidity, in
   
   if(transmitedByButton && channel == 1)
   {
-    sensrId = sensorId;
-    char lsb = (unsigned)sensorId & 0xF;
-    char msb = (unsigned)sensorId >> 4;
-    
-    EEPROM.put(0, msb);
-    EEPROM.put(1, lsb);
+    sensrId = sensorId; 
+    EEPROM.put(0, sensorId);
   }
   
   if(channel == 1 && sensrId == sensorId)
   {
     outsideTemperature = temperature;
-    JsonDocument doc;
-    doc["t"] = temperature;
-    doc["h"] = humidity;
-    doc["b"] = batteryLow;
-    doc["tt"] = temperatureTrend;
-    String output;
-    serializeJson(doc, output);
-    homeAssistant.SetSensor(output.c_str(), "heater/outsideTemperature", true);
+    convert_to_utf8(rawData, 5, utf8Buffer);
+    homeAssistant.SetSensor((const char*) utf8Buffer, TOPIC_OUTSIDETEMPERATURE, true);
     lcd.SetOutTemperature(temperature);
     computeRequiredTemperature();
   }
@@ -392,7 +395,7 @@ void sendToHomeAssistant()
 {
   if(currentMillis - lastMQTTSendMillis > 20000)
   {
-    homeAssistant.SetSensor(states, 10, "heater/state", true);
+    homeAssistant.SetSensor(states, 10, TOPIC_HEATERSTATE, true);
     lastMQTTSendMillis = currentMillis;
   }
 }

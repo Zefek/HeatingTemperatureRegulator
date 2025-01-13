@@ -16,12 +16,12 @@ class TemperatureSensor
     static unsigned long receivedMillis;
     static bool isSync(unsigned int idx);
     static void handler();
-    static void (*TemperatureChanged)(double, int, int, int, bool, bool, int);
+    static void (*TemperatureChanged)(double, uint8_t, uint8_t, uint8_t*, bool);
     static bool Read(byte *bytes);
     static unsigned long CheckCRC(byte *bytes, int);
 
   public:
-    TemperatureSensor(int interruptPin, void (*temperatureChanged)(double, int, int, int, bool, bool, int));
+    TemperatureSensor(int interruptPin, void (*temperatureChanged)(double, uint8_t, uint8_t, uint8_t*, bool));
     void Init();
     void CheckTemperature();
 };

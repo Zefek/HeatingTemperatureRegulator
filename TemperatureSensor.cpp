@@ -7,7 +7,7 @@ bool TemperatureSensor::received = false;
 int TemperatureSensor::interruptPin = 2;
 unsigned long TemperatureSensor::receivedMillis = 0;
 unsigned long TemperatureSensor::timings[RING_BUFFER_SIZE];
-void (*TemperatureSensor::TemperatureChanged)(double, int, int, int, bool, bool, int);
+void (*TemperatureSensor::TemperatureChanged)(double, uint8_t, uint8_t, uint8_t*, bool);
 
 bool TemperatureSensor::isSync(unsigned int idx)
 {
@@ -24,7 +24,7 @@ bool TemperatureSensor::isSync(unsigned int idx)
   return false;
 }
 
-TemperatureSensor::TemperatureSensor(int interruptPin, void (*temperatureChanged)(double, int, int, int, bool, bool, int))
+TemperatureSensor::TemperatureSensor(int interruptPin, void (*temperatureChanged)(double, uint8_t, uint8_t, uint8_t*, bool))
 {
   interruptPin = interruptPin;
   received = false;
@@ -170,13 +170,16 @@ void TemperatureSensor::CheckTemperature()
       {
         unsigned long sensorId = (bytes[0] << 4) + bytes[1];
         bool transmitedByButton = (bytes[3] & 0x08) != 0;
-        bool batteryLow = (bytes[3] & 0x04) != 0;
-        bool temperatureDown = (bytes[3] & 0x02) != 0;
-        bool temperatureUp = (bytes[3] & 0x01) != 0;
         double temperature = ((((bytes[4] << 8) + (bytes[5] << 4) + bytes[6]) * 0.1)-90-32) * ((double)5/9);
         int humidity = (bytes[7] * 10) + bytes[8];
         int channel = bytes[9];
-        TemperatureChanged(temperature, channel, humidity, sensorId, transmitedByButton, batteryLow, temperatureUp? 1 : temperatureDown? -1 : 0);
+        uint8_t rawData[5];
+        rawData[0] = (bytes[0] << 4) + bytes[1];
+        rawData[1] = (bytes[2] << 4) + bytes[3];
+        rawData[2] = (bytes[4] << 4) + bytes[5];
+        rawData[3] = (bytes[6] << 4) + bytes[7];
+        rawData[4] = (bytes[8] << 4) + bytes[9];
+        TemperatureChanged(temperature, channel, sensorId, rawData, transmitedByButton);
       }
       else
       {
