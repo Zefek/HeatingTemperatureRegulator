@@ -9,13 +9,15 @@ TemperatureSensors::TemperatureSensors(uint8_t busPin)
 
 void TemperatureSensors::Init()
 {
+  this->sensors->begin();
   uint8_t count = sensors->getDeviceCount();
+  Serial.println(count);
   DeviceAddress addresses[count];
   sensors->requestTemperatures();
   for(int i = 0; i < count; i++)
   {
     DeviceAddress address;
-    sensors->getAddress(address, 0);
+    sensors->getAddress(address, i);
     this->PrintAddress(address);
     float temp = sensors->getTempC(address);
     Serial.print(": ");

@@ -26,7 +26,7 @@ class Display
   };
     LiquidCrystal_I2C *lcd;//(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
     uint8_t requiredTemperature = 0;
-    uint8_t outTemperature = 0;
+    double outTemperature = 0;
     uint8_t inputTemperature = 0;
     uint8_t currentHeatingTemperature = 0;
     uint8_t hours = 0;
