@@ -436,9 +436,9 @@ void loop() {
  
   if(!heatingOff && currentMillis - lastRegulatorMeassurement > 5000)
   {
-    long intervalTmp = (value - celsius) * 700 - (celsius - celsiusAfterSet) * 1500;
+    long intervalTmp = (value - celsius) * 300 - (celsius - celsiusAfterSet) * 1500;
     interval = min(abs(intervalTmp), 70000);
-    if(interval >= 400 && !relayOn)
+    if(interval >= 200 && !relayOn)
     {
       if(intervalTmp <= 0)
       {
