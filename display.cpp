@@ -6,7 +6,7 @@
   /* 21°******-17.66° */
 
 
-    void Display::print2digits(int number) {
+    void Display::print2digits(uint8_t number) {
       if (number >= 0 && number < 10) {
         lcd->print("0");
       }
@@ -59,7 +59,7 @@
       lcd = new LiquidCrystal_I2C(lcd_Addr, lcd_cols, lcd_rows);
     }
 
-    void Display::Init(Ds1302* rtc, void (*timeChanged)(int, int))
+    void Display::Init(Ds1302* rtc, void (*timeChanged)(uint8_t, uint8_t))
     {
       lcd->init();
       lcd->createChar(0, onChar);
@@ -73,7 +73,7 @@
       lcd->backlight();
     }
 
-    void Display::SetRequiredTemperature(int requiredTemperature)
+    void Display::SetRequiredTemperature(uint8_t requiredTemperature)
     {
       if(this->requiredTemperature != requiredTemperature)
       {
@@ -95,7 +95,7 @@
       }
     }
 
-    void Display::SetInputTemperature(int inputTemperature)
+    void Display::SetInputTemperature(uint8_t inputTemperature)
     {
       if(this->inputTemperature != inputTemperature)
       {
@@ -108,7 +108,7 @@
       }
     }
 
-    void Display::SetCurrentHeatingTemperature(int currentHeatingTemperature)
+    void Display::SetCurrentHeatingTemperature(uint8_t currentHeatingTemperature)
     {
       if(this->currentHeatingTemperature != currentHeatingTemperature)
       {
@@ -121,7 +121,7 @@
       }
     }
      
-    void Display::SetMode(int mode)
+    void Display::SetMode(uint8_t mode)
     {
       this->mode = mode;
       lcd->setCursor(5, 0);
@@ -144,16 +144,6 @@
           lcd->print(" ");
         }
       }
-    }
-
-    void Display::SetPower(int power)
-    {
-      lcd->setCursor(4, 1);
-      if(power<10)
-      {
-       lcd->print(" "); 
-      }
-      lcd->print(power);
     }
 
     void Display::Blink()
