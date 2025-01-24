@@ -1,12 +1,12 @@
 #include <Ds1302.h>
-#include <ArduinoJson.h>
 #include <EEPROM.h>
 #include "display.h"
-#include "TemperatureSensor.h"
+#include "TX07K-TXC.h"
 #include "HomeAssistant.h"
 #include "config.h"
 #include <avr/wdt.h>
 #include "TemperatureSensors.h"
+#include "BelWattmeter.h"
 
 #define I2C_ADDR            0x27
 #define LCD_COLUMNS         16
@@ -45,30 +45,31 @@ void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
 }
 
 /*
-1 - currentTemperature
-2 - inputTemperature
-3 - returnTempareture
-4 - setTemperature
-5 - valve
-6 - heater
-7 - acumulator temperature 1
-8 - acumulator temperature 2
-9 - acumulator temperature 3
-10 - acumulator temperature 4
+0 - currentTemperature
+1 - inputTemperature
+2 - returnTempareture
+3 - setTemperature
+4 - valve
+5 - heater
+6 - acumulator temperature 1
+7 - acumulator temperature 2
+8 - acumulator temperature 3
+9 - acumulator temperature 4
 */
 uint8_t states[10];
-
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
-TemperatureSensor outsideTemperatureSensor(2, OutsideTemperatureChanged);
+TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
 HomeAssistant homeAssistant(WifiSSID, WifiPassword, MQTTUsername, MQTTPassword, MQTTHost, "Heating", MQTTMessageReceive, OnMQTTConnected);
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
+
 unsigned long relayOnMillis = 0;
 unsigned long relayOffMillis = 0;
 unsigned long currentMillis = 0;
 unsigned long temperatureReadMillis = 0;
 unsigned long lastMQTTSendMillis = 0;
 unsigned long lastRegulatorMeassurement = 0;
+unsigned long lastFVEMQTTSendMillis = 0;
 long interval = 0;
 long position = 70000;
 bool relayOn = false;
@@ -86,11 +87,17 @@ uint8_t mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
 uint8_t equithermalCurveZeroPoint = 41;
 double insideTemperature = 23;
 unsigned char utf8Buffer[32];
+int voltage = 0; 
+int current = 0;
+int consumption = 0;
+int power = 0;
+BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
   Serial.begin(57600);
   //AT+UART_DEF=57600,8,1,0,0
   Serial1.begin(57600);
+  Serial2.begin(9600);
   sensrId = EEPROM.read(0);
   Serial.print("Sensor Id: ");
   Serial.println(sensrId);
@@ -347,12 +354,13 @@ void checkHeating()
 
 void readInputTemperature()
 {
-  uint8_t newInputTemperature = tempSensors.GetAcumulatorOutputTemperature();
+  uint8_t newInputTemperature = states[1];
+  tempSensors.GetAcumulatorOutputTemperature(&newInputTemperature);
   if(states[1] != newInputTemperature)
   { 
     lcd.SetInputTemperature(newInputTemperature);
     states[1] = newInputTemperature;
-  }  
+  }
 }
 
 void readCurrentHeatingTemperature()
@@ -383,20 +391,39 @@ void readCurrentReturnTemperature()
   }
 }
 
-void readAcumulatorTemperatures()
-{
-  states[6] = tempSensors.GetAcumulator1Temperature();
-  states[7] = tempSensors.GetAcumulator2Temperature();
-  states[8] = tempSensors.GetAcumulator3Temperature();
-  states[9] = tempSensors.GetAcumulator4Temperature();
-}
-
 void sendToHomeAssistant()
 {
   if(currentMillis - lastMQTTSendMillis > 20000)
   {
+    tempSensors.GetAcumulator1Temperature(&states[6]);
+    tempSensors.GetAcumulator2Temperature(&states[7]);
+    tempSensors.GetAcumulator3Temperature(&states[8]);
+    tempSensors.GetAcumulator4Temperature(&states[9]);
     homeAssistant.SetSensor(states, 10, TOPIC_HEATERSTATE, true);
     lastMQTTSendMillis = currentMillis;
+  }
+}
+
+void sendFVEToHomeAssistant()
+{
+  if(currentMillis - lastFVEMQTTSendMillis > 43000)
+  {
+    uint8_t fveData[8];
+    fveData[0] = (voltage >> 8) & 0xFF;
+    fveData[1] = voltage & 0xFF;
+    fveData[2] = (current >> 8) & 0xFF;
+    fveData[3] = current & 0xFF;
+    fveData[4] = (consumption >> 8) & 0xFF;
+    fveData[5] = consumption & 0xFF;
+    fveData[6] = (power >> 8) & 0xFF;
+    fveData[7] = power & 0xFF;
+    convert_to_utf8(fveData, 8, utf8Buffer);
+    homeAssistant.SetSensor((const char*)utf8Buffer, 16, TOPIC_FVE, true);
+    voltage = 0;
+    current = 0;
+    power = 0;
+    consumption = 0;
+    lastFVEMQTTSendMillis = currentMillis;
   }
 }
 
@@ -409,17 +436,17 @@ void loop() {
   }
   
   outsideTemperatureSensor.CheckTemperature();
-  tempSensors.Loop();
+  belWattmeter.Loop();
   if(currentMillis - temperatureReadMillis > 1000)
   {
     readCurrentHeatingTemperature();
     readCurrentReturnTemperature();
     readInputTemperature();
-    readAcumulatorTemperatures();
     temperatureReadMillis = currentMillis;
   }
   lcd.Print();
   sendToHomeAssistant();
+  sendFVEToHomeAssistant();
   if(!relayOn)
   {
     checkHeating();    
