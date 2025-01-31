@@ -55,8 +55,9 @@ void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
 7 - acumulator temperature 2
 8 - acumulator temperature 3
 9 - acumulator temperature 4
+10 - heater temperature
 */
-uint8_t states[10];
+uint8_t states[11];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
@@ -73,8 +74,8 @@ unsigned long lastFVEMQTTSendMillis = 0;
 long interval = 0;
 long position = 70000;
 bool relayOn = false;
-double value = 25;
-double celsius = 25;
+float value = 25;
+float celsius = 25;
 double celsiusAfterSet = 25;
 short direction = 0;
 bool heatingOff = true;
@@ -118,7 +119,6 @@ void setup() {
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
   lcd.SetMode(mode);
   readCurrentHeatingTemperature();
-  readCurrentReturnTemperature();
   readInputTemperature();
   lcd.Print();
   //wdt_enable(WDTO_8S);
@@ -237,23 +237,18 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   }
 }
 
-double getTemperature(double pinValue, int beta)
-{
-  return 1 / (log((1023 / pinValue - 1)) / beta + NORMTEMP) - 273.15;
-}
-
 void computeRequiredTemperature()
 {
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
-  double zeroTemp = equithermalCurveZeroPoint;
+  float zeroTemp = equithermalCurveZeroPoint;
   Ds1302::DateTime now;
   rtc.getDateTime(&now);
   if(now.hour < 15 || now.hour >= 23)
   {
     zeroTemp = equithermalCurveZeroPoint - 4;
   }
-  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperature - insideTemperature) / (double) - insideTemperature, 0.76923));
+  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperature - insideTemperature) / (float) - insideTemperature, 0.76923));
 
   if(newValue < 10 || newValue > 80)
   {
@@ -304,11 +299,11 @@ bool ShouldBeHeatingOff()
   }
   if(mode == 1)
   {
-    return outsideTemperature > 14.5 || states[1] < MININPUTTEMPERATURE - 1;
+    return outsideTemperature > 14.5 || states[1] < MININPUTTEMPERATURE;
   }
   if(mode == 2)
   {
-    return !thermostat || states[1] < MININPUTTEMPERATURE - 1;
+    return !thermostat || states[1] < MININPUTTEMPERATURE;
   }
   return false;
 }
@@ -365,7 +360,8 @@ void readInputTemperature()
 
 void readCurrentHeatingTemperature()
 {
-  double newCelsius = getTemperature(analogRead(TEMPPIN), 3950);
+  float newCelsius = celsius;
+  tempSensors.GetCurrentHeatingTemperature(&newCelsius);
   if(newCelsius < 0 || newCelsius > 100)
   {
     return;
@@ -378,19 +374,6 @@ void readCurrentHeatingTemperature()
   }
 }
 
-void readCurrentReturnTemperature()
-{
-  double newCelsius = getTemperature(analogRead(RETTEMPPIN), 3950);
-  if(newCelsius < 0 || newCelsius > 100)
-  {
-    return;
-  }
-  if(newCelsius < states[2] - 0.5 || newCelsius > states[2] + 0.5)
-  {
-    states[2] = (uint8_t)round(newCelsius);
-  }
-}
-
 void sendToHomeAssistant()
 {
   if(currentMillis - lastMQTTSendMillis > 20000)
@@ -399,7 +382,9 @@ void sendToHomeAssistant()
     tempSensors.GetAcumulator2Temperature(&states[7]);
     tempSensors.GetAcumulator3Temperature(&states[8]);
     tempSensors.GetAcumulator4Temperature(&states[9]);
-    homeAssistant.SetSensor(states, 10, TOPIC_HEATERSTATE, true);
+    tempSensors.GetReturnHeatingTemperature(&states[2]);
+    tempSensors.GetHeaterTemperature(&states[10]);
+    homeAssistant.SetSensor(states, 11, TOPIC_HEATERSTATE, true);
     lastMQTTSendMillis = currentMillis;
   }
 }
@@ -440,7 +425,6 @@ void loop() {
   if(currentMillis - temperatureReadMillis > 1000)
   {
     readCurrentHeatingTemperature();
-    readCurrentReturnTemperature();
     readInputTemperature();
     temperatureReadMillis = currentMillis;
   }
@@ -461,20 +445,19 @@ void loop() {
     celsiusAfterSet = celsius;
   }
  
-  if(!heatingOff && currentMillis - lastRegulatorMeassurement > 5000)
+  if(!heatingOff && currentMillis - lastRegulatorMeassurement > 15000)
   {
-    long intervalTmp = (value - celsius) * 300 - (celsius - celsiusAfterSet) * 1500;
-    interval = min(abs(intervalTmp), 70000);
-    if(interval >= 200 && !relayOn)
+    long intervalTmp = ((value - celsius) * 100) - ((celsius - celsiusAfterSet) * 1500);
+    
+    if(intervalTmp <= 0 && !relayOn)
     {
-      if(intervalTmp <= 0)
-      {
-        setRelay(-1);
-      }
-      else if(value - celsius > 0)
-      {
-        setRelay(1);
-      }
+      interval = min(abs(intervalTmp), 70000);
+      setRelay(-1);
+    }
+    else if(value - celsius > 0 && !relayOn)
+    {
+      interval = min(abs(intervalTmp), 70000);
+      setRelay(1);
     }
     lastRegulatorMeassurement = currentMillis;
   }

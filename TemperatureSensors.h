@@ -17,6 +17,9 @@ class TemperatureSensors
     void GetAcumulator3Temperature(uint8_t* temperature);
     void GetAcumulator4Temperature(uint8_t* temperature);
     void GetAcumulatorOutputTemperature(uint8_t* temperature);
+    void GetReturnHeatingTemperature(uint8_t* temperature);
+    void GetCurrentHeatingTemperature(float* temperature);
+    void GetHeaterTemperature(uint8_t* temperature);
     void Init();
 };
 #endif

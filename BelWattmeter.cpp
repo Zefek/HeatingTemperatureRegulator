@@ -22,7 +22,7 @@ void BelWattmeter::Loop()
   while(Serial2.available())
   {
     byte read = (byte)Serial2.read();
-    Print(read);
+    //Print(read);
     buffer[bufferPosition++] = read;
     if(this->dataRead < this->dataLength)
     {

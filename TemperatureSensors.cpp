@@ -24,6 +24,7 @@ void TemperatureSensors::Init()
     Serial.print(": ");
     Serial.println(temp);
   }
+  this->sensors->setResolution(currentHeating, 12);
 }
 
 void TemperatureSensors::GetAcumulator1Temperature(uint8_t* temperature)
@@ -49,6 +50,39 @@ void TemperatureSensors::GetAcumulator4Temperature(uint8_t* temperature)
 void TemperatureSensors::GetAcumulatorOutputTemperature(uint8_t* temperature)
 {
   GetTemperature(acumulatorOutput, temperature);
+}
+
+void TemperatureSensors::GetReturnHeatingTemperature(uint8_t* temperature)
+{
+  GetTemperature(returnHeating, temperature);
+}
+
+void TemperatureSensors::GetHeaterTemperature(uint8_t* temperature)
+{
+  GetTemperature(heaterTemperature, temperature);
+}
+
+void TemperatureSensors::GetCurrentHeatingTemperature(float* temperature)
+{
+  sensors->requestTemperaturesByAddress(currentHeating);
+  float temp = sensors->getTempC(currentHeating);
+  if(temp == -127)
+  {
+    return;
+  }
+  if(temp == -254)
+  {
+    return;
+  }
+  if(temp == -253)
+  {
+    return;
+  }
+  if(temp == -252)
+  {
+    return;
+  }
+  *temperature = temp;
 }
 
 void TemperatureSensors::GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature)
