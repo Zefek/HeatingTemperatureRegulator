@@ -19,40 +19,93 @@ void TemperatureSensors::Init()
     DeviceAddress address;
     sensors->getAddress(address, i);
     this->PrintAddress(address);
+    this->sensors->setResolution(address, 9);
     float temp = sensors->getTempC(address);
     Serial.print(": ");
     Serial.println(temp);
   }
+  this->sensors->setResolution(currentHeating, 12);
 }
 
-void TemperatureSensors::Loop()
+void TemperatureSensors::GetAcumulator1Temperature(uint8_t* temperature)
 {
-  sensors->requestTemperatures();
+  GetTemperature(acumulatorFirst, temperature);
 }
 
-uint8_t TemperatureSensors::GetAcumulator1Temperature()
+void TemperatureSensors::GetAcumulator2Temperature(uint8_t* temperature)
 {
-  return (uint8_t)round(sensors->getTempC(acumulatorFirst));
+  GetTemperature(acumulatorSecond, temperature);
 }
 
-uint8_t TemperatureSensors::GetAcumulator2Temperature()
+void TemperatureSensors::GetAcumulator3Temperature(uint8_t* temperature)
 {
-  return (uint8_t)round(sensors->getTempC(acumulatorSecond));
+  GetTemperature(acumulatorThird, temperature);
 }
 
-uint8_t TemperatureSensors::GetAcumulator3Temperature()
+void TemperatureSensors::GetAcumulator4Temperature(uint8_t* temperature)
 {
-  return (uint8_t)round(sensors->getTempC(acumulatorThird));
+  GetTemperature(acumulatorFour, temperature);
 }
 
-uint8_t TemperatureSensors::GetAcumulator4Temperature()
+void TemperatureSensors::GetAcumulatorOutputTemperature(uint8_t* temperature)
 {
-  return (uint8_t)round(sensors->getTempC(acumulatorFour));
+  GetTemperature(acumulatorOutput, temperature);
 }
 
-uint8_t TemperatureSensors::GetAcumulatorOutputTemperature()
+void TemperatureSensors::GetReturnHeatingTemperature(uint8_t* temperature)
 {
-  return (uint8_t)round(sensors->getTempC(acumulatorOutput));
+  GetTemperature(returnHeating, temperature);
+}
+
+void TemperatureSensors::GetHeaterTemperature(uint8_t* temperature)
+{
+  GetTemperature(heaterTemperature, temperature);
+}
+
+void TemperatureSensors::GetCurrentHeatingTemperature(float* temperature)
+{
+  sensors->requestTemperaturesByAddress(currentHeating);
+  float temp = sensors->getTempC(currentHeating);
+  if(temp == -127)
+  {
+    return;
+  }
+  if(temp == -254)
+  {
+    return;
+  }
+  if(temp == -253)
+  {
+    return;
+  }
+  if(temp == -252)
+  {
+    return;
+  }
+  *temperature = temp;
+}
+
+void TemperatureSensors::GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature)
+{
+  sensors->requestTemperaturesByAddress(deviceAddress);
+  float temp = sensors->getTempC(deviceAddress);
+  if(temp == -127)
+  {
+    return;
+  }
+  if(temp == -254)
+  {
+    return;
+  }
+  if(temp == -253)
+  {
+    return;
+  }
+  if(temp == -252)
+  {
+    return;
+  }
+  *temperature = (uint8_t)round(temp);
 }
 
 void TemperatureSensors::PrintAddress(DeviceAddress deviceAddress)
