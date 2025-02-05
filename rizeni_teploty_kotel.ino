@@ -88,10 +88,10 @@ uint8_t mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
 uint8_t equithermalCurveZeroPoint = 41;
 double insideTemperature = 23;
 unsigned char utf8Buffer[32];
-int voltage = 0; 
-int current = 0;
-int consumption = 0;
-int power = 0;
+unsigned int voltage = 0; 
+unsigned int current = 0;
+unsigned int consumption = 0;
+unsigned int power = 0;
 BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
@@ -408,6 +408,7 @@ void sendFVEToHomeAssistant()
     current = 0;
     power = 0;
     consumption = 0;
+    belWattmeter.Reset();
     lastFVEMQTTSendMillis = currentMillis;
   }
 }
