@@ -2,11 +2,13 @@
 #include <EEPROM.h>
 #include "display.h"
 #include "TX07K-TXC.h"
-#include "HomeAssistant.h"
+//#include "HomeAssistant.h"
 #include "config.h"
 #include <avr/wdt.h>
 #include "TemperatureSensors.h"
 #include "BelWattmeter.h"
+#include "MQTTClient.h"
+#include "EspDrv.h"
 
 #define I2C_ADDR            0x27
 #define LCD_COLUMNS         16
@@ -25,10 +27,10 @@
 #define ONEWIREBUSPIN       7
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
-void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length);
+void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
 void TimeChanged(int hours, int minutes);
 void computeRequiredTemperature();
-void OnMQTTConnected(bool success);
+void OnMQTTConnected();
 
 void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
     unsigned char *out_ptr = output;
@@ -61,7 +63,11 @@ uint8_t states[11];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
-HomeAssistant homeAssistant(WifiSSID, WifiPassword, MQTTUsername, MQTTPassword, MQTTHost, "Heating", MQTTMessageReceive, OnMQTTConnected);
+//HomeAssistant homeAssistant(WifiSSID, WifiPassword, MQTTUsername, MQTTPassword, MQTTHost, "Heating", MQTTMessageReceive, OnMQTTConnected);
+
+EspDrv drv(&Serial1);
+MQTTClient client(&drv, MQTTMessageReceive, OnMQTTConnected);
+
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
 
 unsigned long relayOnMillis = 0;
@@ -107,8 +113,9 @@ void setup() {
   lcd.BackLight();
   outsideTemperatureSensor.Init();
   tempSensors.Init();
-  homeAssistant.Init();
-  homeAssistant.Connect();
+  drv.Connect(WifiSSID, WifiPassword);
+  //homeAssistant.Init();
+  //homeAssistant.Connect();
   delay(1000);
   pinMode(MOREHEATINGRELAYPIN, OUTPUT);
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
@@ -124,24 +131,12 @@ void setup() {
   //wdt_enable(WDTO_8S);
 }
 
-void OnMQTTConnected(bool success)
+void OnMQTTConnected()
 {
-  if(success)
-  {
-    //homeAssistant.Subscribe("homeassistant/devices/heater/command/*");
-    homeAssistant.Subscribe("cmd/thermostat");
-    homeAssistant.Subscribe("cmd/mode");
-    homeAssistant.Subscribe("cmd/zeroPoint");
-    homeAssistant.Subscribe("cmd/currentDateTime");
-    homeAssistant.Subscribe("events/insidetemperaturesetchanged");
-  }
-  if(!success)
-  {
-    mode = 1;
-    lcd.SetMode(mode);
-    equithermalCurveZeroPoint = 41;
-    insideTemperature = 23;
-  }
+  client.Subscribe("heater/thermostat");
+  client.Subscribe("heater/mode");
+  client.Subscribe("heater/zeroPoint");
+  client.Subscribe("cmd/currentDateTime");
 }
 
 void TimeChanged(int hours, int minutes)
@@ -231,7 +226,7 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   {
     outsideTemperature = temperature;
     convert_to_utf8(rawData, 5, utf8Buffer);
-    homeAssistant.SetSensor((const char*) utf8Buffer, TOPIC_OUTSIDETEMPERATURE, true);
+    client.Publish((const char*) utf8Buffer, TOPIC_OUTSIDETEMPERATURE, true);
     lcd.SetOutTemperature(temperature);
     computeRequiredTemperature();
   }
@@ -246,7 +241,7 @@ void computeRequiredTemperature()
   rtc.getDateTime(&now);
   if(now.hour < 15 || now.hour >= 23)
   {
-    zeroTemp = equithermalCurveZeroPoint - 4;
+    zeroTemp = equithermalCurveZeroPoint - 6;
   }
   int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperature - insideTemperature) / (float) - insideTemperature, 0.76923));
 
@@ -384,7 +379,7 @@ void sendToHomeAssistant()
     tempSensors.GetAcumulator4Temperature(&states[9]);
     tempSensors.GetReturnHeatingTemperature(&states[2]);
     tempSensors.GetHeaterTemperature(&states[10]);
-    homeAssistant.SetSensor(states, 11, TOPIC_HEATERSTATE, true);
+    client.Publish(states, 11, TOPIC_HEATERSTATE, true);
     lastMQTTSendMillis = currentMillis;
   }
 }
@@ -403,7 +398,7 @@ void sendFVEToHomeAssistant()
     fveData[6] = (power >> 8) & 0xFF;
     fveData[7] = power & 0xFF;
     convert_to_utf8(fveData, 8, utf8Buffer);
-    homeAssistant.SetSensor((const char*)utf8Buffer, 16, TOPIC_FVE, true);
+    client.Publish((const char*)utf8Buffer, 16, TOPIC_FVE, true);
     voltage = 0;
     current = 0;
     power = 0;
@@ -416,11 +411,12 @@ void sendFVEToHomeAssistant()
 void loop() {
   wdt_reset();
   currentMillis = millis();
-  if(!homeAssistant.Loop())
+  if(client.GetState() == MQTT_NOTCONNECTED)
   {
-    homeAssistant.Connect();
+    Serial.println("Connect");
+    client.Connect(MQTTHost, 1883, "Test", MQTTUsername, MQTTPassword, "", 0, false, "", false);
   }
-  
+  client.Loop();
   outsideTemperatureSensor.CheckTemperature();
   belWattmeter.Loop();
   if(currentMillis - temperatureReadMillis > 1000)
