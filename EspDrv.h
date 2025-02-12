@@ -31,6 +31,7 @@ class EspDrv
     void TagReceived(const char* pTag);
     bool WaitForTag(const char* pTag, unsigned long timeout);
     uint8_t connectionState = ESP_NOTCONNECTED;
+    unsigned long startDataReadMillis = 0;
 
   public:
     EspDrv(Stream *serial);

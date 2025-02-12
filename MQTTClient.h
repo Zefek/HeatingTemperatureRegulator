@@ -63,6 +63,7 @@ class MQTTClient
     void (*connected)();
     static uint8_t connectionState;
     static uint8_t stateChangedToConnected;
+    
   public:
     MQTTClient(EspDrv *espDriver, void(*callback)(char* topic, uint8_t* payload, uint16_t plength), void(*connected)());
     void Connect(const char* url, uint16_t port, const char *id, const char *user, const char *pass, const char* willTopic, uint8_t willQos, boolean willRetain, const char* willMessage, boolean cleanSession);

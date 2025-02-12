@@ -34,6 +34,7 @@ void EspDrv::Loop()
         Serial.println(receivedDataLength);
         this->receivedDataBuffer = new uint8_t[receivedDataLength];
         this->state = ESPREADSTATE_DATA2;
+        startDataReadMillis = millis();
       } 
       else 
       {
@@ -49,6 +50,12 @@ void EspDrv::Loop()
         Serial.println("Data read ok");
         this->state = ESPREADSTATE1;
         DataReceived(receivedDataBuffer, dataLength);
+        delete(receivedDataBuffer);
+      }
+      if(millis() - startDataReadMillis > 5000)
+      {
+        Serial.println("Data read error");
+        this->state = ESPREADSTATE1;
         delete(receivedDataBuffer);
       }
     } 
@@ -99,11 +106,13 @@ void EspDrv::Loop()
 
 int EspDrv::Connect(const char* ssid, const char* password) {
   this->SendCmd(F("ATE0"));
-  WaitForTag("OK", 1000);
+  WaitForTag("OK", 10000);
   this->tag = "";
+  delay(1000);
   this->SendCmd(F("AT+CWJAP_CUR=\"%s\",\"%s\""), ssid, password);
-  WaitForTag("OK", 1000);
+  WaitForTag("OK", 10000);
   this->tag = "";
+  delay(1000);
   connectionState = ESP_CONNECTED;
   return 0;
 }
@@ -144,7 +153,7 @@ bool EspDrv::WaitForTag(const char* pTag, unsigned long timeout)
 {
   Serial.print("Wait For Tag ");
   unsigned long m = millis();
-  while (strncmp(this->tag, pTag, strlen(pTag)) != 0) //&& millis() - m < timeout) 
+  while (strncmp(this->tag, pTag, strlen(pTag)) != 0 && millis() - m < timeout) 
   {
     this->Loop();
   }

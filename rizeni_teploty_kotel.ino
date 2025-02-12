@@ -395,7 +395,7 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetAcumulator4Temperature(&states[9]);
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
-  homeAssistant.SetSensor(states, 11, TOPIC_HEATERSTATE, true);
+  client.Publish(states, 11, TOPIC_HEATERSTATE, true);
 }
 
 void sendFVEToHomeAssistant()
@@ -410,7 +410,7 @@ void sendFVEToHomeAssistant()
   fveData[6] = (power >> 8) & 0xFF;
   fveData[7] = power & 0xFF;
   convert_to_utf8(fveData, 8, utf8Buffer);
-  homeAssistant.SetSensor((const char*)utf8Buffer, 16, TOPIC_FVE, true);
+  client.Publish((const char*)utf8Buffer, 16, TOPIC_FVE, true);
   voltage = 0;
   current = 0;
   power = 0;
@@ -423,6 +423,10 @@ void loop() {
   currentMillis = millis();
   if(client.GetState() == MQTT_NOTCONNECTED)
   {
+    mode = 1;
+    lcd.SetMode(mode);
+    equithermalCurveZeroPoint = 41;
+    insideTemperature = 23;
     Serial.println("Connect");
     client.Connect(MQTTHost, 1883, "Test", MQTTUsername, MQTTPassword, "", 0, false, "", false);
   }
@@ -452,6 +456,7 @@ void loop() {
  
   if(!heatingOff && currentMillis - lastRegulatorMeassurement > 20000)
   {
+    /*
     Serial.print("P: ");
     Serial.print(value);
     Serial.print(" - ");
@@ -464,6 +469,7 @@ void loop() {
     Serial.print(lastCelsius);
     Serial.print(" = ");
     Serial.println(celsius - lastCelsius);
+    */
     long intervalTmp = ((value - celsius) * 600) - ((celsius - lastCelsius) * 4500);
     lastCelsius = celsius;
     if(intervalTmp <= 0 && !relayOn)
