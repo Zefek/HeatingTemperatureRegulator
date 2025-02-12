@@ -75,7 +75,6 @@ long position = 70000;
 bool relayOn = false;
 float value = 25;
 float celsius = 25;
-float error = 0;
 double lastCelsius = 25;
 short direction = 0;
 bool heatingOff = true;
@@ -457,23 +456,19 @@ void loop() {
  
   if(!heatingOff && currentMillis - lastRegulatorMeassurement > 20000)
   {
-    //value = 39, celsisu = 40 > error += -1
-    error += (value - celsius);
     Serial.print("P: ");
     Serial.print(value);
     Serial.print(" - ");
     Serial.print(celsius);
     Serial.print(" = ");
     Serial.print(value - celsius);
-    Serial.print(" I: ");
-    Serial.print(error);
     Serial.print(" D: ");
     Serial.print(celsius);
     Serial.print(" - ");
     Serial.print(lastCelsius);
     Serial.print(" = ");
     Serial.println(celsius - lastCelsius);
-    long intervalTmp = ((value - celsius) * 600) + (error * 100) - ((celsius - lastCelsius) * 6500);
+    long intervalTmp = ((value - celsius) * 600) - ((celsius - lastCelsius) * 4500);
     lastCelsius = celsius;
     if(intervalTmp <= 0 && !relayOn)
     {
