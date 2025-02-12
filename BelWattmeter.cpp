@@ -60,7 +60,6 @@ void BelWattmeter::Loop()
         *current = ((unsigned long)*current * counter + currentTmp) / (counter + 1);
         *power = ((unsigned long)*power * counter + powerTmp) / (counter + 1);
         *consumption = consumptionTmp;
-        Serial.println((unsigned long)*power * counter + powerTmp);
         counter++;
       }
       voltageTmp = 0;

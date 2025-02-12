@@ -76,13 +76,12 @@ unsigned long currentMillis = 0;
 unsigned long temperatureReadMillis = 0;
 unsigned long lastMQTTSendMillis = 0;
 unsigned long lastRegulatorMeassurement = 0;
-unsigned long lastFVEMQTTSendMillis = 0;
 long interval = 0;
 long position = 70000;
 bool relayOn = false;
 float value = 25;
 float celsius = 25;
-double celsiusAfterSet = 25;
+double lastCelsius = 25;
 short direction = 0;
 bool heatingOff = true;
 double outsideTemperature = 14;
@@ -126,6 +125,7 @@ void setup() {
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
   lcd.SetMode(mode);
   readCurrentHeatingTemperature();
+  lastCelsius = celsius;
   readInputTemperature();
   lcd.Print();
   //wdt_enable(WDTO_8S);
@@ -369,43 +369,53 @@ void readCurrentHeatingTemperature()
   }
 }
 
+unsigned int sendIndex = 0;
 void sendToHomeAssistant()
 {
-  if(currentMillis - lastMQTTSendMillis > 20000)
+  if(currentMillis - lastMQTTSendMillis > 30000)
   {
-    tempSensors.GetAcumulator1Temperature(&states[6]);
-    tempSensors.GetAcumulator2Temperature(&states[7]);
-    tempSensors.GetAcumulator3Temperature(&states[8]);
-    tempSensors.GetAcumulator4Temperature(&states[9]);
-    tempSensors.GetReturnHeatingTemperature(&states[2]);
-    tempSensors.GetHeaterTemperature(&states[10]);
-    client.Publish(states, 11, TOPIC_HEATERSTATE, true);
+    if(sendIndex == 0)
+    {
+      sendHeaterToHomeAssistant();
+      sendIndex = 1;
+    }
+    else
+    {
+      sendFVEToHomeAssistant();
+      sendIndex = 0;
+    }
     lastMQTTSendMillis = currentMillis;
   }
+}
+void sendHeaterToHomeAssistant()
+{
+  tempSensors.GetAcumulator1Temperature(&states[6]);
+  tempSensors.GetAcumulator2Temperature(&states[7]);
+  tempSensors.GetAcumulator3Temperature(&states[8]);
+  tempSensors.GetAcumulator4Temperature(&states[9]);
+  tempSensors.GetReturnHeatingTemperature(&states[2]);
+  tempSensors.GetHeaterTemperature(&states[10]);
+  homeAssistant.SetSensor(states, 11, TOPIC_HEATERSTATE, true);
 }
 
 void sendFVEToHomeAssistant()
 {
-  if(currentMillis - lastFVEMQTTSendMillis > 43000)
-  {
-    uint8_t fveData[8];
-    fveData[0] = (voltage >> 8) & 0xFF;
-    fveData[1] = voltage & 0xFF;
-    fveData[2] = (current >> 8) & 0xFF;
-    fveData[3] = current & 0xFF;
-    fveData[4] = (consumption >> 8) & 0xFF;
-    fveData[5] = consumption & 0xFF;
-    fveData[6] = (power >> 8) & 0xFF;
-    fveData[7] = power & 0xFF;
-    convert_to_utf8(fveData, 8, utf8Buffer);
-    client.Publish((const char*)utf8Buffer, 16, TOPIC_FVE, true);
-    voltage = 0;
-    current = 0;
-    power = 0;
-    consumption = 0;
-    belWattmeter.Reset();
-    lastFVEMQTTSendMillis = currentMillis;
-  }
+  uint8_t fveData[8];
+  fveData[0] = (voltage >> 8) & 0xFF;
+  fveData[1] = voltage & 0xFF;
+  fveData[2] = (current >> 8) & 0xFF;
+  fveData[3] = current & 0xFF;
+  fveData[4] = (consumption >> 8) & 0xFF;
+  fveData[5] = consumption & 0xFF;
+  fveData[6] = (power >> 8) & 0xFF;
+  fveData[7] = power & 0xFF;
+  convert_to_utf8(fveData, 8, utf8Buffer);
+  homeAssistant.SetSensor((const char*)utf8Buffer, 16, TOPIC_FVE, true);
+  voltage = 0;
+  current = 0;
+  power = 0;
+  consumption = 0;
+  belWattmeter.Reset();
 }
 
 void loop() {
@@ -427,7 +437,6 @@ void loop() {
   }
   lcd.Print();
   sendToHomeAssistant();
-  sendFVEToHomeAssistant();
   if(!relayOn)
   {
     checkHeating();    
@@ -439,13 +448,24 @@ void loop() {
     position = min(max(position, 0), 70000);
     states[4] = (uint8_t)round(position/(double)700);
     relayOffMillis = currentMillis;
-    celsiusAfterSet = celsius;
   }
  
-  if(!heatingOff && currentMillis - lastRegulatorMeassurement > 15000)
+  if(!heatingOff && currentMillis - lastRegulatorMeassurement > 20000)
   {
-    long intervalTmp = ((value - celsius) * 100) - ((celsius - celsiusAfterSet) * 1500);
-    
+    Serial.print("P: ");
+    Serial.print(value);
+    Serial.print(" - ");
+    Serial.print(celsius);
+    Serial.print(" = ");
+    Serial.print(value - celsius);
+    Serial.print(" D: ");
+    Serial.print(celsius);
+    Serial.print(" - ");
+    Serial.print(lastCelsius);
+    Serial.print(" = ");
+    Serial.println(celsius - lastCelsius);
+    long intervalTmp = ((value - celsius) * 600) - ((celsius - lastCelsius) * 4500);
+    lastCelsius = celsius;
     if(intervalTmp <= 0 && !relayOn)
     {
       interval = min(abs(intervalTmp), 70000);
