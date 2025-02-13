@@ -4,12 +4,17 @@ static bool MQTTClient::pingOutstanding = false;
 static void (*MQTTClient::callback)(char* topic, uint8_t* payload, uint16_t plength) = 0;
 static uint8_t MQTTClient::connectionState = MQTT_NOTCONNECTED;
 static uint8_t MQTTClient::stateChangedToConnected = false;
+static bool MQTTClient::subsack = false;
 
 static void MQTTClient::DataReceived(uint8_t* data, int length)
 {
   Serial.println(data[0]&0xF0);
   switch(data[0]&0xF0)
   {
+    case 144:
+      Serial.println("SUBACK");
+      MQTTClient::subsack = true;
+    break;
     case MQTTCONNACK: 
       MQTTClient::connectionState = MQTT_CONNECTED;
       MQTTClient::stateChangedToConnected = true;
@@ -21,6 +26,11 @@ static void MQTTClient::DataReceived(uint8_t* data, int length)
     break;
     case MQTTPUBLISH:
       Serial.println("MQTTPUBLISH");
+      for(int i = 0 ; i<length; i++)
+      {
+        Serial.print((int)data[i]);
+        Serial.print("|");
+      }
       uint8_t l = data[1];
       uint16_t tl = (data[2]<<8)+data[3];
       memmove(data+3, data+4, tl);
@@ -29,7 +39,8 @@ static void MQTTClient::DataReceived(uint8_t* data, int length)
       Serial.println(topic);
       uint8_t* payload = data+tl+4;
       callback(topic,payload,l - tl - 2);
-      break;
+    break;
+    
   }
 }
 
@@ -127,6 +138,7 @@ void MQTTClient::Subscribe(const char *topic, uint8_t qos)
 {
   if(MQTTClient::connectionState == MQTT_CONNECTED)
   {
+    MQTTClient::subsack = false;
     size_t topicLength = strnlen(topic, this->bufferSize);
     if (topic == 0) 
     {
@@ -153,6 +165,12 @@ void MQTTClient::Subscribe(const char *topic, uint8_t qos)
     length = WriteString((char*)topic, this->buffer,length);
     this->buffer[length++] = qos;
     Write(MQTTSUBSCRIBE|MQTTQOS1,this->buffer,length-MQTT_MAX_HEADER_SIZE);
+    while(!MQTTClient::subsack)
+    {
+      client->Loop();
+    }
+    delay(200);
+    client->Loop();
   }
 }
 
@@ -173,9 +191,11 @@ void MQTTClient::Publish(const char* topic, const uint8_t* payload, unsigned int
 
 void MQTTClient::Publish(const char* topic, const uint8_t* payload, unsigned int plength, boolean retained)
 {
+  Serial.println(plength);
   if (this->bufferSize < MQTT_MAX_HEADER_SIZE + 2+strnlen(topic, this->bufferSize) + plength) 
   {
     // Too long
+    Serial.println("Too long");
     return false;
   }
   // Leave room in the buffer for header and variable length field
@@ -193,14 +213,13 @@ void MQTTClient::Publish(const char* topic, const uint8_t* payload, unsigned int
   if (retained) {
     header |= 1;
   }
+  Serial.println("P1 OK");
   Write(header,this->buffer,length-MQTT_MAX_HEADER_SIZE);
   Serial.println("Publish OK");
 }
 
 void MQTTClient::Write(uint8_t header, uint8_t* buf, uint16_t length) 
 {
-  if(MQTTClient::connectionState == MQTT_CONNECTED || header == MQTTCONNECT)
-  {
     Serial.println("Write");
     uint16_t rc;
     uint8_t hlen = BuildHeader(header, buf, length);
@@ -222,7 +241,6 @@ void MQTTClient::Write(uint8_t header, uint8_t* buf, uint16_t length)
     client->Write(buf+(MQTT_MAX_HEADER_SIZE-hlen),length+hlen);
     lastOutActivity = millis();
 #endif
-  }
 }
 
 size_t MQTTClient::BuildHeader(uint8_t header, uint8_t* buf, uint16_t length) {

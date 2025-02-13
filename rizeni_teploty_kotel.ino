@@ -133,9 +133,10 @@ void setup() {
 
 void OnMQTTConnected()
 {
-  client.Subscribe("heater/thermostat");
-  client.Subscribe("heater/mode");
-  client.Subscribe("heater/zeroPoint");
+  client.Subscribe("cmd/thermostat");
+  client.Subscribe("cmd/mode");
+  client.Subscribe("cmd/zeroPoint");
+  client.Subscribe("heater/thermostatset");
   client.Subscribe("cmd/currentDateTime");
 }
 
@@ -183,14 +184,14 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     lcd.SetMode(mode);
   }
   //Bod na nule v topné křivce
-  if(strcmp(topic, "heater/cmd/zeroPoint") == 0)
+  if(strcmp(topic, "cmd/zeroPoint") == 0)
   {
     int t = 0;
     sscanf(p, "%d", &t);
     equithermalCurveZeroPoint = t;
   }
   //Nastavení data a času
-  if(strcmp(topic, "heater/cmd/currentDateTime") == 0)
+  if(strcmp(topic, "cmd/currentDateTime") == 0)
   {
     int day, month, year, hour, minute, second;
     sscanf(p, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
@@ -203,7 +204,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     dt.year = year;
     rtc.setDateTime(&dt);
   }
-  if(strcmp(topic, "events/insidetemperaturesetchanged") == 0)
+  if(strcmp(topic, "heater/thermostatset") == 0)
   {
     insideTemperature = atof(p);
   }
@@ -226,7 +227,7 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   {
     outsideTemperature = temperature;
     convert_to_utf8(rawData, 5, utf8Buffer);
-    client.Publish((const char*) utf8Buffer, TOPIC_OUTSIDETEMPERATURE, true);
+    client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
     lcd.SetOutTemperature(temperature);
     computeRequiredTemperature();
   }
@@ -395,7 +396,8 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetAcumulator4Temperature(&states[9]);
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
-  client.Publish(states, 11, TOPIC_HEATERSTATE, true);
+  client.Publish(TOPIC_HEATERSTATE, states, 11, true);
+  Serial.println("Heater publish");
 }
 
 void sendFVEToHomeAssistant()
@@ -410,7 +412,8 @@ void sendFVEToHomeAssistant()
   fveData[6] = (power >> 8) & 0xFF;
   fveData[7] = power & 0xFF;
   convert_to_utf8(fveData, 8, utf8Buffer);
-  client.Publish((const char*)utf8Buffer, 16, TOPIC_FVE, true);
+  client.Publish(TOPIC_FVE, (const char*)utf8Buffer, 16, true);
+  Serial.println("FVE publish");
   voltage = 0;
   current = 0;
   power = 0;

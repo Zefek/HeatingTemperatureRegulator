@@ -63,6 +63,7 @@ class MQTTClient
     void (*connected)();
     static uint8_t connectionState;
     static uint8_t stateChangedToConnected;
+    static bool subsack;
     
   public:
     MQTTClient(EspDrv *espDriver, void(*callback)(char* topic, uint8_t* payload, uint16_t plength), void(*connected)());

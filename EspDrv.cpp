@@ -23,7 +23,7 @@ void EspDrv::Loop()
     if (this->state == ESPREADSTATE_DATA_LENGTH1) 
     {
       char c = this->serial->read();
-      Serial.print(c);
+      //Serial.print(c);
       if (c == ':') 
       {
         buffer[bufLength++] = '\0';
@@ -44,6 +44,8 @@ void EspDrv::Loop()
     else if (this->state == ESPREADSTATE_DATA2) 
     {
       uint8_t r = this->serial->read();
+      //Serial.print((int)r);
+      //Serial.print("|");
       receivedDataBuffer[dataRead++] = r;
       if (dataRead == receivedDataLength) 
       {
@@ -70,7 +72,7 @@ void EspDrv::Loop()
     else 
     {
       char c = this->serial->read();
-      Serial.print(c);
+      //Serial.print(c);
       if (c == '\r') 
       {
         this->state = ESPREADSTATE2;
@@ -104,16 +106,23 @@ void EspDrv::Loop()
   }
 }
 
-int EspDrv::Connect(const char* ssid, const char* password) {
+int EspDrv::Connect(const char* ssid, const char* password) 
+{
   this->SendCmd(F("ATE0"));
   WaitForTag("OK", 10000);
   this->tag = "";
-  delay(1000);
   this->SendCmd(F("AT+CWJAP_CUR=\"%s\",\"%s\""), ssid, password);
   WaitForTag("OK", 10000);
   this->tag = "";
   delay(1000);
   connectionState = ESP_CONNECTED;
+  this->SendCmd(F("AT+CIPSTATUS"));
+  WaitForTag("OK", 10000);
+  this->tag = "";
+  this->SendCmd(F("AT+CIPMUX=0"));
+  WaitForTag("OK", 10000);
+  this->tag = "";
+  delay(1000);
   return 0;
 }
 
@@ -121,10 +130,16 @@ int EspDrv::TCPConnect(const char* url, int port) {
   this->SendCmd(F("AT+CIPSTART=\"TCP\",\"%s\",%d"), url, port);
   WaitForTag("OK", 10000);
   this->tag = "";
+  delay(1000);
+  this->SendCmd(F("AT+CIPSTATUS"));
+  WaitForTag("OK", 10000);
+  this->tag = "";
+  delay(1000);
   return 0;
 }
 
-void EspDrv::Write(uint8_t* data, uint16_t length) {
+void EspDrv::Write(uint8_t* data, uint16_t length) 
+{
   this->SendCmd(F("AT+CIPSEND=%d"), length);
   WaitForTag(">", 1000);
   this->data = data;
@@ -146,12 +161,14 @@ void EspDrv::SendCmd(const __FlashStringHelper* cmd, ...) {
   vsnprintf_P(cmdBuf, CMD_BUFFER_SIZE, (char*)cmd, args);
   va_end(args);
   Serial.println(cmdBuf);
+  Loop();
   this->serial->println(cmdBuf);
 }
 
 bool EspDrv::WaitForTag(const char* pTag, unsigned long timeout) 
 {
   Serial.print("Wait For Tag ");
+  Serial.print(pTag);
   unsigned long m = millis();
   while (strncmp(this->tag, pTag, strlen(pTag)) != 0 && millis() - m < timeout) 
   {
