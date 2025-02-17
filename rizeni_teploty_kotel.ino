@@ -2,13 +2,12 @@
 #include <EEPROM.h>
 #include "display.h"
 #include "TX07K-TXC.h"
-//#include "HomeAssistant.h"
 #include "config.h"
 #include <avr/wdt.h>
 #include "TemperatureSensors.h"
 #include "BelWattmeter.h"
-#include "MQTTClient.h"
-#include "EspDrv.h"
+#include <MQTTClient.h>
+#include <EspDrv.h>
 
 #define I2C_ADDR            0x27
 #define LCD_COLUMNS         16
@@ -30,7 +29,6 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
 void TimeChanged(int hours, int minutes);
 void computeRequiredTemperature();
-void OnMQTTConnected();
 
 void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
     unsigned char *out_ptr = output;
@@ -63,10 +61,9 @@ uint8_t states[11];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
-//HomeAssistant homeAssistant(WifiSSID, WifiPassword, MQTTUsername, MQTTPassword, MQTTHost, "Heating", MQTTMessageReceive, OnMQTTConnected);
 
 EspDrv drv(&Serial1);
-MQTTClient client(&drv, MQTTMessageReceive, OnMQTTConnected);
+MQTTClient client(&drv, MQTTMessageReceive);
 
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
 
@@ -112,7 +109,7 @@ void setup() {
   lcd.BackLight();
   outsideTemperatureSensor.Init();
   tempSensors.Init();
-  drv.Connect(WifiSSID, WifiPassword);
+  drv.Init();
   //homeAssistant.Init();
   //homeAssistant.Connect();
   delay(1000);
@@ -131,13 +128,25 @@ void setup() {
   //wdt_enable(WDTO_8S);
 }
 
-void OnMQTTConnected()
+bool MQTTConnect()
 {
-  client.Subscribe("cmd/thermostat");
-  client.Subscribe("cmd/mode");
-  client.Subscribe("cmd/zeroPoint");
-  client.Subscribe("heater/thermostatset");
-  client.Subscribe("cmd/currentDateTime");
+  Serial.println("MQTT Connect");
+  uint8_t wifiStatus = drv.GetConnectionStatus();
+  bool wifiConnected = wifiStatus == WL_CONNECTED;
+  if(wifiStatus == WL_DISCONNECTED || wifiStatus == WL_IDLE_STATUS)
+  {
+    wifiConnected = drv.Connect(WifiSSID, WifiPassword);
+  }
+  if(wifiConnected)
+  {
+    uint8_t clientStatus = drv.GetClientStatus();
+    if(clientStatus == CL_DISCONNECTED)
+    {
+      return client.Connect(MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false);
+    }
+    return true;
+  }
+  return false;
 }
 
 void TimeChanged(int hours, int minutes)
@@ -156,7 +165,6 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Termostat on/off
   if(strcmp(topic, "cmd/thermostat") == 0)
   {
-    Serial.println(p);
     if(strcmp(p, "OFF") == 0)
     {
        thermostat = false;
@@ -424,16 +432,25 @@ void sendFVEToHomeAssistant()
 void loop() {
   wdt_reset();
   currentMillis = millis();
-  if(client.GetState() == MQTT_NOTCONNECTED)
+  if(!client.Loop())
   {
-    mode = 1;
-    lcd.SetMode(mode);
-    equithermalCurveZeroPoint = 41;
-    insideTemperature = 23;
-    Serial.println("Connect");
-    client.Connect(MQTTHost, 1883, "Test", MQTTUsername, MQTTPassword, "", 0, false, "", false);
+    if(MQTTConnect())
+    {
+      Serial.println("Subscribes");
+      client.Subscribe(TOPIC_THERMOSTAT);
+      client.Subscribe(TOPIC_MODE);
+      client.Subscribe(TOPIC_ZEROPOINT);
+      client.Subscribe(TOPIC_THERMOSTATSETCHANGED);
+      client.Subscribe(TOPIC_CURRENTDATETIEM);
+    }
+    else
+    {
+      mode = 1;
+      lcd.SetMode(mode);
+      equithermalCurveZeroPoint = 41;
+      insideTemperature = 23;
+    }
   }
-  client.Loop();
   outsideTemperatureSensor.CheckTemperature();
   belWattmeter.Loop();
   if(currentMillis - temperatureReadMillis > 1000)
