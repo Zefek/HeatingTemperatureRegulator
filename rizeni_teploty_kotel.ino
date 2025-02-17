@@ -87,7 +87,7 @@ bool thermostat = false;
 double totalPower = 0;
 uint8_t sensrId = 0;
 uint8_t mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
-uint8_t equithermalCurveZeroPoint = 41;
+uint8_t equithermalCurveZeroPoint = 40;
 double insideTemperature = 23;
 unsigned char utf8Buffer[32];
 unsigned int voltage = 0; 
@@ -244,12 +244,6 @@ void computeRequiredTemperature()
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
   float zeroTemp = equithermalCurveZeroPoint;
-  Ds1302::DateTime now;
-  rtc.getDateTime(&now);
-  if(now.hour < 15 || now.hour >= 23)
-  {
-    zeroTemp = equithermalCurveZeroPoint - 6;
-  }
   int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperature - insideTemperature) / (float) - insideTemperature, 0.76923));
 
   if(newValue < 10 || newValue > 80)
@@ -445,7 +439,7 @@ void loop() {
     {
       mode = 1;
       lcd.SetMode(mode);
-      equithermalCurveZeroPoint = 41;
+      equithermalCurveZeroPoint = 40;
       insideTemperature = 23;
     }
   }
