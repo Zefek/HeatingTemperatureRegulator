@@ -161,7 +161,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   }
   p[length] = '\0';
   //Termostat on/off
-  if(strcmp(topic, "cmd/thermostat") == 0)
+  if(strcmp(topic, TOPIC_THERMOSTAT) == 0)
   {
     if(strcmp(p, "OFF") == 0)
     {
@@ -173,7 +173,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     }
   }
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
-  if(strcmp(topic, "cmd/mode") == 0)
+  if(strcmp(topic, TOPIC_MODE) == 0)
   {
     if(strcmp(p, "Off") == 0)
     {        
@@ -190,14 +190,14 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     lcd.SetMode(mode);
   }
   //Bod na nule v topné křivce
-  if(strcmp(topic, "cmd/zeroPoint") == 0)
+  if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
   {
     int t = 0;
     sscanf(p, "%d", &t);
     equithermalCurveZeroPoint = t;
   }
   //Nastavení data a času
-  if(strcmp(topic, "cmd/currentDateTime") == 0)
+  if(strcmp(topic, TOPIC_CURRENTDATETIEM) == 0)
   {
     int day, month, year, hour, minute, second;
     sscanf(p, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
@@ -210,7 +210,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     dt.year = year;
     rtc.setDateTime(&dt);
   }
-  if(strcmp(topic, "heater/thermostatset") == 0)
+  if(strcmp(topic, TOPIC_THERMOSTATSETCHANGED) == 0)
   {
     insideTemperature = atof(p);
   }
