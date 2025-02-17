@@ -2,11 +2,12 @@
 #include <EEPROM.h>
 #include "display.h"
 #include "TX07K-TXC.h"
-#include "HomeAssistant.h"
 #include "config.h"
 #include <avr/wdt.h>
 #include "TemperatureSensors.h"
 #include "BelWattmeter.h"
+#include <MQTTClient.h>
+#include <EspDrv.h>
 
 #define I2C_ADDR            0x27
 #define LCD_COLUMNS         16
@@ -25,10 +26,9 @@
 #define ONEWIREBUSPIN       7
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
-void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length);
+void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
 void TimeChanged(int hours, int minutes);
 void computeRequiredTemperature();
-void OnMQTTConnected(bool success);
 
 void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
     unsigned char *out_ptr = output;
@@ -61,7 +61,10 @@ uint8_t states[11];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
-HomeAssistant homeAssistant(WifiSSID, WifiPassword, MQTTUsername, MQTTPassword, MQTTHost, "Heating", MQTTMessageReceive, OnMQTTConnected);
+
+EspDrv drv(&Serial1);
+MQTTClient client(&drv, MQTTMessageReceive);
+
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
 
 unsigned long relayOnMillis = 0;
@@ -106,8 +109,7 @@ void setup() {
   lcd.BackLight();
   outsideTemperatureSensor.Init();
   tempSensors.Init();
-  homeAssistant.Init();
-  homeAssistant.Connect();
+  drv.Init();
   delay(1000);
   pinMode(MOREHEATINGRELAYPIN, OUTPUT);
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
@@ -124,24 +126,25 @@ void setup() {
   //wdt_enable(WDTO_8S);
 }
 
-void OnMQTTConnected(bool success)
+bool MQTTConnect()
 {
-  if(success)
+  Serial.println("MQTT Connect");
+  uint8_t wifiStatus = drv.GetConnectionStatus();
+  bool wifiConnected = wifiStatus == WL_CONNECTED;
+  if(wifiStatus == WL_DISCONNECTED || wifiStatus == WL_IDLE_STATUS)
   {
-    //homeAssistant.Subscribe("homeassistant/devices/heater/command/*");
-    homeAssistant.Subscribe("cmd/thermostat");
-    homeAssistant.Subscribe("cmd/mode");
-    homeAssistant.Subscribe("cmd/zeroPoint");
-    homeAssistant.Subscribe("cmd/currentDateTime");
-    homeAssistant.Subscribe("events/insidetemperaturesetchanged");
+    wifiConnected = drv.Connect(WifiSSID, WifiPassword);
   }
-  if(!success)
+  if(wifiConnected)
   {
-    mode = 1;
-    lcd.SetMode(mode);
-    equithermalCurveZeroPoint = 41;
-    insideTemperature = 23;
+    uint8_t clientStatus = drv.GetClientStatus();
+    if(clientStatus == CL_DISCONNECTED)
+    {
+      return client.Connect(MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false);
+    }
+    return true;
   }
+  return false;
 }
 
 void TimeChanged(int hours, int minutes)
@@ -158,9 +161,8 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   }
   p[length] = '\0';
   //Termostat on/off
-  if(strcmp(topic, "cmd/thermostat") == 0)
+  if(strcmp(topic, TOPIC_THERMOSTAT) == 0)
   {
-    Serial.println(p);
     if(strcmp(p, "OFF") == 0)
     {
        thermostat = false;
@@ -171,7 +173,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     }
   }
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
-  if(strcmp(topic, "cmd/mode") == 0)
+  if(strcmp(topic, TOPIC_MODE) == 0)
   {
     if(strcmp(p, "Off") == 0)
     {        
@@ -188,14 +190,14 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     lcd.SetMode(mode);
   }
   //Bod na nule v topné křivce
-  if(strcmp(topic, "heater/cmd/zeroPoint") == 0)
+  if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
   {
     int t = 0;
     sscanf(p, "%d", &t);
     equithermalCurveZeroPoint = t;
   }
   //Nastavení data a času
-  if(strcmp(topic, "heater/cmd/currentDateTime") == 0)
+  if(strcmp(topic, TOPIC_CURRENTDATETIEM) == 0)
   {
     int day, month, year, hour, minute, second;
     sscanf(p, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
@@ -208,7 +210,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     dt.year = year;
     rtc.setDateTime(&dt);
   }
-  if(strcmp(topic, "events/insidetemperaturesetchanged") == 0)
+  if(strcmp(topic, TOPIC_THERMOSTATSETCHANGED) == 0)
   {
     insideTemperature = atof(p);
   }
@@ -231,7 +233,7 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   {
     outsideTemperature = temperature;
     convert_to_utf8(rawData, 5, utf8Buffer);
-    homeAssistant.SetSensor((const char*) utf8Buffer, TOPIC_OUTSIDETEMPERATURE, true);
+    client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
     lcd.SetOutTemperature(temperature);
     computeRequiredTemperature();
   }
@@ -246,7 +248,7 @@ void computeRequiredTemperature()
   rtc.getDateTime(&now);
   if(now.hour < 15 || now.hour >= 23)
   {
-    zeroTemp = equithermalCurveZeroPoint - 4;
+    zeroTemp = equithermalCurveZeroPoint - 6;
   }
   int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperature - insideTemperature) / (float) - insideTemperature, 0.76923));
 
@@ -400,7 +402,8 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetAcumulator4Temperature(&states[9]);
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
-  homeAssistant.SetSensor(states, 11, TOPIC_HEATERSTATE, true);
+  client.Publish(TOPIC_HEATERSTATE, states, 11, true);
+  Serial.println("Heater publish");
 }
 
 void sendFVEToHomeAssistant()
@@ -415,7 +418,8 @@ void sendFVEToHomeAssistant()
   fveData[6] = (power >> 8) & 0xFF;
   fveData[7] = power & 0xFF;
   convert_to_utf8(fveData, 8, utf8Buffer);
-  homeAssistant.SetSensor((const char*)utf8Buffer, 16, TOPIC_FVE, true);
+  client.Publish(TOPIC_FVE, (const char*)utf8Buffer, 16, true);
+  Serial.println("FVE publish");
   voltage = 0;
   current = 0;
   power = 0;
@@ -426,11 +430,25 @@ void sendFVEToHomeAssistant()
 void loop() {
   wdt_reset();
   currentMillis = millis();
-  if(!homeAssistant.Loop())
+  if(!client.Loop())
   {
-    homeAssistant.Connect();
+    if(MQTTConnect())
+    {
+      Serial.println("Subscribes");
+      client.Subscribe(TOPIC_THERMOSTAT);
+      client.Subscribe(TOPIC_MODE);
+      client.Subscribe(TOPIC_ZEROPOINT);
+      client.Subscribe(TOPIC_THERMOSTATSETCHANGED);
+      client.Subscribe(TOPIC_CURRENTDATETIEM);
+    }
+    else
+    {
+      mode = 1;
+      lcd.SetMode(mode);
+      equithermalCurveZeroPoint = 41;
+      insideTemperature = 23;
+    }
   }
-  
   outsideTemperatureSensor.CheckTemperature();
   belWattmeter.Loop();
   if(currentMillis - temperatureReadMillis > 1000)
@@ -456,6 +474,7 @@ void loop() {
  
   if(!heatingOff && currentMillis - lastRegulatorMeassurement > 20000)
   {
+    /*
     Serial.print("P: ");
     Serial.print(value);
     Serial.print(" - ");
@@ -468,6 +487,7 @@ void loop() {
     Serial.print(lastCelsius);
     Serial.print(" = ");
     Serial.println(celsius - lastCelsius);
+    */
     long intervalTmp = ((value - celsius) * 600) - ((celsius - lastCelsius) * 4500);
     lastCelsius = celsius;
     if(intervalTmp <= 0 && !relayOn)
