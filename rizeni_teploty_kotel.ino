@@ -110,8 +110,6 @@ void setup() {
   outsideTemperatureSensor.Init();
   tempSensors.Init();
   drv.Init();
-  //homeAssistant.Init();
-  //homeAssistant.Connect();
   delay(1000);
   pinMode(MOREHEATINGRELAYPIN, OUTPUT);
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
