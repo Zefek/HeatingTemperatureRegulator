@@ -27,7 +27,6 @@
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
-void TimeChanged(int hours, int minutes);
 void computeRequiredTemperature();
 
 void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
@@ -105,7 +104,7 @@ void setup() {
   Serial.print("Sensor Id: ");
   Serial.println(sensrId);
   rtc.init();
-  lcd.Init(&rtc, TimeChanged);
+  lcd.Init(&rtc);
   lcd.BackLight();
   outsideTemperatureSensor.Init();
   tempSensors.Init();
@@ -145,11 +144,6 @@ bool MQTTConnect()
     return true;
   }
   return false;
-}
-
-void TimeChanged(int hours, int minutes)
-{
-  computeRequiredTemperature();
 }
 
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
@@ -195,6 +189,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     int t = 0;
     sscanf(p, "%d", &t);
     equithermalCurveZeroPoint = t;
+    computeRequiredTemperature();
   }
   //Nastavení data a času
   if(strcmp(topic, TOPIC_CURRENTDATETIEM) == 0)
