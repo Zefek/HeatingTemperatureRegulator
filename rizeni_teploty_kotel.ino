@@ -27,7 +27,6 @@
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
-void TimeChanged(int hours, int minutes);
 void computeRequiredTemperature();
 
 void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
@@ -87,7 +86,7 @@ bool thermostat = false;
 double totalPower = 0;
 uint8_t sensrId = 0;
 uint8_t mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
-uint8_t equithermalCurveZeroPoint = 41;
+uint8_t equithermalCurveZeroPoint = 40;
 double insideTemperature = 23;
 unsigned char utf8Buffer[32];
 unsigned int voltage = 0; 
@@ -105,7 +104,7 @@ void setup() {
   Serial.print("Sensor Id: ");
   Serial.println(sensrId);
   rtc.init();
-  lcd.Init(&rtc, TimeChanged);
+  lcd.Init(&rtc);
   lcd.BackLight();
   outsideTemperatureSensor.Init();
   tempSensors.Init();
@@ -145,11 +144,6 @@ bool MQTTConnect()
     return true;
   }
   return false;
-}
-
-void TimeChanged(int hours, int minutes)
-{
-  computeRequiredTemperature();
 }
 
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
@@ -195,6 +189,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     int t = 0;
     sscanf(p, "%d", &t);
     equithermalCurveZeroPoint = t;
+    computeRequiredTemperature();
   }
   //Nastavení data a času
   if(strcmp(topic, TOPIC_CURRENTDATETIEM) == 0)
@@ -244,12 +239,6 @@ void computeRequiredTemperature()
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
   float zeroTemp = equithermalCurveZeroPoint;
-  Ds1302::DateTime now;
-  rtc.getDateTime(&now);
-  if(now.hour < 15 || now.hour >= 23)
-  {
-    zeroTemp = equithermalCurveZeroPoint - 6;
-  }
   int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperature - insideTemperature) / (float) - insideTemperature, 0.76923));
 
   if(newValue < 10 || newValue > 80)
@@ -445,7 +434,7 @@ void loop() {
     {
       mode = 1;
       lcd.SetMode(mode);
-      equithermalCurveZeroPoint = 41;
+      equithermalCurveZeroPoint = 40;
       insideTemperature = 23;
     }
   }
