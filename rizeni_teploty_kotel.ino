@@ -122,7 +122,7 @@ void setup() {
   lastCelsius = celsius;
   readInputTemperature();
   lcd.Print();
-  //wdt_enable(WDTO_8S);
+  wdt_enable(WDTO_8S);
 }
 
 bool MQTTConnect()
