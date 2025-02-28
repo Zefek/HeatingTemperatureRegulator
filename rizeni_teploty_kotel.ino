@@ -209,6 +209,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   {
     insideTemperature = atof(p);
   }
+  delete(p);
 }
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton)
