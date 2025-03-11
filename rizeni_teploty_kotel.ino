@@ -55,8 +55,13 @@ void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
 8 - acumulator temperature 3
 9 - acumulator temperature 4
 10 - heater temperature
+11 - heater Waste temperature B0 (LSB)
+12 - heater Waste temperature B1
+13 - heater Waste temperature B2
+14 - heater Waste temperature B3 (MSB)
+15 - heater return temperature
 */
-uint8_t states[11];
+uint8_t states[16];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
@@ -254,6 +259,19 @@ void computeRequiredTemperature()
   }
 }
 
+void ComputeWasteGasTemperature()
+{
+  int value = analogRead(A0);
+  //U2 R1 / (U - U2) = R2
+  double R2 = (value * 10000) / ((double)1024 - value);
+  int T = (int)((sqrt((-0.00232 * R2) + 17.59246) - 3.908) / 0.00116) * (-1);
+  for(int i = 11; i < 15; i++)
+  {
+    states[i] = T & 0x0F;
+    T = T >> 4;
+  }
+}
+
 void setRelay(int pDirection)
 {
   //value - celsius - 1 - nastavená 50, naměřená 40 = 50-40-1 = 9 => value > 0, direction = 1
@@ -392,7 +410,8 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetAcumulator4Temperature(&states[9]);
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
-  client.Publish(TOPIC_HEATERSTATE, states, 11, true);
+  ComputeWasteGasTemperature();
+  client.Publish(TOPIC_HEATERSTATE, states, 16, true);
   Serial.println("Heater publish");
 }
 
