@@ -91,9 +91,9 @@ unsigned int power = 0;
 BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(115200);
   //AT+UART_DEF=57600,8,1,0,0
-  Serial1.begin(57600);
+  Serial1.begin(115200);
   Serial2.begin(9600);
   sensrId = EEPROM.read(0);
   Serial.print("Sensor Id: ");
@@ -120,9 +120,8 @@ void setup() {
   wdt_enable(WDTO_8S);
 }
 
-bool MQTTConnect()
+void MQTTConnect()
 {
-  Serial.println("MQTT Connect");
   uint8_t wifiStatus = drv.GetConnectionStatus();
   bool wifiConnected = wifiStatus == WL_CONNECTED;
   if(wifiStatus == WL_DISCONNECTED || wifiStatus == WL_IDLE_STATUS)
@@ -142,16 +141,16 @@ bool MQTTConnect()
         client.Subscribe(TOPIC_ZEROPOINT);
         client.Subscribe(TOPIC_THERMOSTATSETCHANGED);
         client.Subscribe(TOPIC_CURRENTDATETIEM);
-        return true;
       }
       else
       {
-        return false;
+        mode = 1;
+        lcd.SetMode(mode);
+        equithermalCurveZeroPoint = 40;
+        insideTemperature = 22.5;
       }
     }
-    return true;
   }
-  return false;
 }
 
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
@@ -428,13 +427,7 @@ void loop() {
   currentMillis = millis();
   if(!client.Loop())
   {
-    if(!MQTTConnect())
-    {
-      mode = 1;
-      lcd.SetMode(mode);
-      equithermalCurveZeroPoint = 40;
-      insideTemperature = 22.5;
-    }
+    MQTTConnect();
   }
   outsideTemperatureSensor.CheckTemperature();
   belWattmeter.Loop();
