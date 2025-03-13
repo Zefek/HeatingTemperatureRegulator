@@ -12,13 +12,6 @@
 #define I2C_ADDR            0x27
 #define LCD_COLUMNS         16
 #define LCD_LINES           2
-#define BETA                3950
-#define TEMPPIN             A0
-#define OUTTEMPPIN          A1
-#define RETTEMPPIN          A2
-#define NORMTEMP            1 / (25 + 273.15)
-#define R0                  10000
-#define R                   10000
 #define MOREHEATINGRELAYPIN 8
 #define LESSHEATINGRELAYPIN 9
 #define HEATINGPUMPRELAYPIN 10
@@ -65,6 +58,7 @@ uint8_t states[16];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
+MQTTConnectData mqttConnectData = { MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false, 0x0 }; 
 
 EspDrv drv(&Serial1);
 MQTTClient client(&drv, MQTTMessageReceive);
@@ -94,6 +88,7 @@ uint8_t mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
 uint8_t equithermalCurveZeroPoint = 40;
 double insideTemperature = 23;
 unsigned char utf8Buffer[32];
+unsigned char mqttReceivedData[24];
 unsigned int voltage = 0; 
 unsigned int current = 0;
 unsigned int consumption = 0;
@@ -101,9 +96,9 @@ unsigned int power = 0;
 BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(115200);
   //AT+UART_DEF=57600,8,1,0,0
-  Serial1.begin(57600);
+  Serial1.begin(115200);
   Serial2.begin(9600);
   sensrId = EEPROM.read(0);
   Serial.print("Sensor Id: ");
@@ -113,7 +108,7 @@ void setup() {
   lcd.BackLight();
   outsideTemperatureSensor.Init();
   tempSensors.Init();
-  drv.Init();
+  drv.Init(64);
   delay(1000);
   pinMode(MOREHEATINGRELAYPIN, OUTPUT);
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
@@ -130,9 +125,8 @@ void setup() {
   wdt_enable(WDTO_8S);
 }
 
-bool MQTTConnect()
+void MQTTConnect()
 {
-  Serial.println("MQTT Connect");
   uint8_t wifiStatus = drv.GetConnectionStatus();
   bool wifiConnected = wifiStatus == WL_CONNECTED;
   if(wifiStatus == WL_DISCONNECTED || wifiStatus == WL_IDLE_STATUS)
@@ -144,29 +138,41 @@ bool MQTTConnect()
     uint8_t clientStatus = drv.GetClientStatus();
     if(clientStatus == CL_DISCONNECTED)
     {
-      return client.Connect(MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false);
+      if(client.Connect(mqttConnectData))
+      {
+        Serial.println("Subscribes");
+        client.Subscribe(TOPIC_THERMOSTAT);
+        client.Subscribe(TOPIC_MODE);
+        client.Subscribe(TOPIC_ZEROPOINT);
+        client.Subscribe(TOPIC_THERMOSTATSETCHANGED);
+        client.Subscribe(TOPIC_CURRENTDATETIEM);
+      }
+      else
+      {
+        mode = 1;
+        lcd.SetMode(mode);
+        equithermalCurveZeroPoint = 40;
+        insideTemperature = 22.5;
+      }
     }
-    return true;
   }
-  return false;
 }
 
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
 {
-  char* p = new char[length+1];
   for(int i = 0; i<length; i++)
   {
-    p[i] = (char)payload[i];
+    mqttReceivedData[i] = (char)payload[i];
   }
-  p[length] = '\0';
+  mqttReceivedData[length] = '\0';
   //Termostat on/off
   if(strcmp(topic, TOPIC_THERMOSTAT) == 0)
   {
-    if(strcmp(p, "OFF") == 0)
+    if(strcmp(mqttReceivedData, "OFF") == 0)
     {
        thermostat = false;
     }
-    else if(strcmp(p, "ON") == 0)
+    else if(strcmp(mqttReceivedData, "ON") == 0)
     {
       thermostat = true;
     }
@@ -174,15 +180,15 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
   if(strcmp(topic, TOPIC_MODE) == 0)
   {
-    if(strcmp(p, "Off") == 0)
+    if(strcmp(mqttReceivedData, "Off") == 0)
     {        
       mode = 0;
     }
-    else if(strcmp(p, "Automatic") == 0)
+    else if(strcmp(mqttReceivedData, "Automatic") == 0)
     {
       mode = 1;
     }
-    else if (strcmp(p, "Thermostat") == 0)
+    else if (strcmp(mqttReceivedData, "Thermostat") == 0)
     {
       mode = 2;
     }
@@ -192,7 +198,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
   {
     int t = 0;
-    sscanf(p, "%d", &t);
+    sscanf(mqttReceivedData, "%d", &t);
     equithermalCurveZeroPoint = t;
     computeRequiredTemperature();
   }
@@ -200,7 +206,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   if(strcmp(topic, TOPIC_CURRENTDATETIEM) == 0)
   {
     int day, month, year, hour, minute, second;
-    sscanf(p, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+    sscanf(mqttReceivedData, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
     Ds1302::DateTime dt;
     dt.hour = hour;
     dt.minute = minute;
@@ -212,9 +218,8 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   }
   if(strcmp(topic, TOPIC_THERMOSTATSETCHANGED) == 0)
   {
-    insideTemperature = atof(p);
+    insideTemperature = atof(mqttReceivedData);
   }
-  delete(p);
 }
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton)
@@ -441,22 +446,7 @@ void loop() {
   currentMillis = millis();
   if(!client.Loop())
   {
-    if(MQTTConnect())
-    {
-      Serial.println("Subscribes");
-      client.Subscribe(TOPIC_THERMOSTAT);
-      client.Subscribe(TOPIC_MODE);
-      client.Subscribe(TOPIC_ZEROPOINT);
-      client.Subscribe(TOPIC_THERMOSTATSETCHANGED);
-      client.Subscribe(TOPIC_CURRENTDATETIEM);
-    }
-    else
-    {
-      mode = 1;
-      lcd.SetMode(mode);
-      equithermalCurveZeroPoint = 40;
-      insideTemperature = 23;
-    }
+    MQTTConnect();
   }
   outsideTemperatureSensor.CheckTemperature();
   belWattmeter.Loop();
