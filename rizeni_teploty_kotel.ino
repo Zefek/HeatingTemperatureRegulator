@@ -121,6 +121,7 @@ void setup() {
   readCurrentHeatingTemperature();
   lastCelsius = celsius;
   readInputTemperature();
+  ComputeWasteGasTemperature();
   lcd.Print();
   wdt_enable(WDTO_8S);
 }
@@ -270,6 +271,7 @@ void ComputeWasteGasTemperature()
   gasTempValue = 1024 - gasTempValue;
   double R1 = (gasTempValue * 10000) / ((double)1024 - gasTempValue);
   int T = (int)((sqrt((-0.00232 * R1) + 17.59246) - 3.908) / 0.00116) * (-1);
+  lcd.SetWasteGasTemperature(T);
   for(int i = 11; i < 15; i++)
   {
     uint8_t v = T & 0x0F;

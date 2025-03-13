@@ -36,6 +36,7 @@ class Display
     unsigned long blinkCount = 0;
     bool heatingOn = false;
     uint8_t mode = 0;
+    int wasteGasTemperature = 0;
 
     void print2digits(uint8_t number);
     void printTime();
@@ -53,4 +54,5 @@ class Display
     void SetOutTemperature(double outTemperature);
     void SetHeating(bool heatingOn);
     void SetMode(uint8_t mode);
+    void SetWasteGasTemperature(int wasteGasTemperature);
 };
