@@ -266,13 +266,14 @@ void computeRequiredTemperature()
 
 void ComputeWasteGasTemperature()
 {
-  int value = analogRead(A0);
-  //U2 R1 / (U - U2) = R2
-  double R2 = (value * 10000) / ((double)1024 - value);
-  int T = (int)((sqrt((-0.00232 * R2) + 17.59246) - 3.908) / 0.00116) * (-1);
+  unsigned long gasTempValue = analogRead(A0);
+  gasTempValue = 1024 - gasTempValue;
+  double R1 = (gasTempValue * 10000) / ((double)1024 - gasTempValue);
+  int T = (int)((sqrt((-0.00232 * R1) + 17.59246) - 3.908) / 0.00116) * (-1);
   for(int i = 11; i < 15; i++)
   {
-    states[i] = T & 0x0F;
+    uint8_t v = T & 0x0F;
+    states[i] = v < 10? (char)('0'+v):(char)('7'+v);
     T = T >> 4;
   }
 }
