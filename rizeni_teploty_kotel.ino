@@ -48,8 +48,13 @@ void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
 8 - acumulator temperature 3
 9 - acumulator temperature 4
 10 - heater temperature
+11 - heater Waste temperature B0 (LSB)
+12 - heater Waste temperature B1
+13 - heater Waste temperature B2
+14 - heater Waste temperature B3 (MSB)
+15 - heater return temperature
 */
-uint8_t states[11];
+uint8_t states[16];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
@@ -88,6 +93,8 @@ unsigned int voltage = 0;
 unsigned int current = 0;
 unsigned int consumption = 0;
 unsigned int power = 0;
+unsigned int averageWasteGasTemperature = 0;
+unsigned long averageWasteGasTemperatureCount = 0;
 BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
@@ -116,6 +123,8 @@ void setup() {
   readCurrentHeatingTemperature();
   lastCelsius = celsius;
   readInputTemperature();
+  ComputeWasteGasTemperature();
+  lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   lcd.Print();
   wdt_enable(WDTO_8S);
 }
@@ -259,6 +268,16 @@ void computeRequiredTemperature()
   }
 }
 
+void ComputeWasteGasTemperature()
+{
+  unsigned long gasTempValue = analogRead(A0);
+  gasTempValue = 1024 - gasTempValue;
+  double R1 = (gasTempValue * 10000) / ((double)1024 - gasTempValue);
+  int T = (int)((sqrt((-0.00232 * R1) + 17.59246) - 3.908) / 0.00116) * (-1);
+  averageWasteGasTemperature = ((averageWasteGasTemperature * averageWasteGasTemperatureCount) + T) / (averageWasteGasTemperatureCount + 1);
+  averageWasteGasTemperatureCount++;
+}
+
 void setRelay(int pDirection)
 {
   //value - celsius - 1 - nastavená 50, naměřená 40 = 50-40-1 = 9 => value > 0, direction = 1
@@ -397,7 +416,16 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetAcumulator4Temperature(&states[9]);
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
-  client.Publish(TOPIC_HEATERSTATE, states, 11, true);
+  lcd.SetWasteGasTemperature(averageWasteGasTemperature);
+  int T = averageWasteGasTemperature;
+  for(int i = 11; i < 15; i++)
+  {
+    uint8_t v = T & 0x0F;
+    states[i] = v < 10? (char)('0'+v):(char)('7'+v);
+    T = T >> 4;
+  }
+  averageWasteGasTemperatureCount = 0;
+  client.Publish(TOPIC_HEATERSTATE, states, 16, true);
   Serial.println("Heater publish");
 }
 
@@ -435,6 +463,7 @@ void loop() {
   {
     readCurrentHeatingTemperature();
     readInputTemperature();
+    ComputeWasteGasTemperature();
     temperatureReadMillis = currentMillis;
   }
   lcd.Print();
