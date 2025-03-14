@@ -101,6 +101,14 @@
         lcd->setCursor(4, 1);
         lcd->print("    ");
         lcd->setCursor(4, 1);
+        if(wasteGasTemperature < 10)
+        {
+          lcd->print("  ");
+        }
+        else if(wasteGasTemperature < 100)
+        {
+          lcd->print(" ");
+        }
         lcd->print(wasteGasTemperature);
         lcd->write((byte)1);
       }

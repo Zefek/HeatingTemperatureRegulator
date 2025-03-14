@@ -93,6 +93,8 @@ unsigned int voltage = 0;
 unsigned int current = 0;
 unsigned int consumption = 0;
 unsigned int power = 0;
+unsigned int averageWasteGasTemperature = 0;
+unsigned long averageWasteGasTemperatureCount = 0;
 BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
@@ -122,6 +124,7 @@ void setup() {
   lastCelsius = celsius;
   readInputTemperature();
   ComputeWasteGasTemperature();
+  lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   lcd.Print();
   wdt_enable(WDTO_8S);
 }
@@ -271,13 +274,8 @@ void ComputeWasteGasTemperature()
   gasTempValue = 1024 - gasTempValue;
   double R1 = (gasTempValue * 10000) / ((double)1024 - gasTempValue);
   int T = (int)((sqrt((-0.00232 * R1) + 17.59246) - 3.908) / 0.00116) * (-1);
-  lcd.SetWasteGasTemperature(T);
-  for(int i = 11; i < 15; i++)
-  {
-    uint8_t v = T & 0x0F;
-    states[i] = v < 10? (char)('0'+v):(char)('7'+v);
-    T = T >> 4;
-  }
+  averageWasteGasTemperature = ((averageWasteGasTemperature * averageWasteGasTemperatureCount) + T) / (averageWasteGasTemperatureCount + 1);
+  averageWasteGasTemperatureCount++;
 }
 
 void setRelay(int pDirection)
@@ -418,7 +416,15 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetAcumulator4Temperature(&states[9]);
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
-  ComputeWasteGasTemperature();
+  lcd.SetWasteGasTemperature(averageWasteGasTemperature);
+  int T = averageWasteGasTemperature;
+  for(int i = 11; i < 15; i++)
+  {
+    uint8_t v = T & 0x0F;
+    states[i] = v < 10? (char)('0'+v):(char)('7'+v);
+    T = T >> 4;
+  }
+  averageWasteGasTemperatureCount = 0;
   client.Publish(TOPIC_HEATERSTATE, states, 16, true);
   Serial.println("Heater publish");
 }
@@ -457,6 +463,7 @@ void loop() {
   {
     readCurrentHeatingTemperature();
     readInputTemperature();
+    ComputeWasteGasTemperature();
     temperatureReadMillis = currentMillis;
   }
   lcd.Print();
