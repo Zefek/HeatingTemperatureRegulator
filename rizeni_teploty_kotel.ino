@@ -98,9 +98,9 @@ unsigned long averageWasteGasTemperatureCount = 0;
 BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(57600);
   //AT+UART_DEF=57600,8,1,0,0
-  Serial1.begin(115200);
+  Serial1.begin(57600);
   Serial2.begin(9600);
   sensrId = EEPROM.read(0);
   Serial.print("Sensor Id: ");
@@ -131,7 +131,9 @@ void setup() {
 
 void MQTTConnect()
 {
-  uint8_t wifiStatus = drv.GetConnectionStatus();
+  int wifiStatus = drv.GetConnectionStatus();
+  Serial.print("Wifi status ");
+  Serial.println(wifiStatus);
   bool wifiConnected = wifiStatus == WL_CONNECTED;
   if(wifiStatus == WL_DISCONNECTED || wifiStatus == WL_IDLE_STATUS)
   {
@@ -139,9 +141,10 @@ void MQTTConnect()
   }
   if(wifiConnected)
   {
-    uint8_t clientStatus = drv.GetClientStatus();
-    if(clientStatus == CL_DISCONNECTED)
+    bool isConnected = client.IsConnected();
+    if(!isConnected)
     {
+      Serial.println("Connect");
       if(client.Connect(mqttConnectData))
       {
         Serial.println("Subscribes");
