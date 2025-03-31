@@ -36,6 +36,20 @@ void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
     output[j] = '\0'; // Null-terminate the UTF-8 string
 }
 
+bool ArrayComparer(const uint8_t* first, uint8_t* second, uint8_t length)
+{
+  bool result = false;
+  for(int i = 0; i < length; i++)
+  {
+    if(first[i] != second[i])
+    {
+      second[i] = first[i];
+      result = true;
+    }
+  }
+  return result;
+}
+
 /*
 0 - currentTemperature
 1 - inputTemperature
@@ -55,6 +69,10 @@ void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
 15 - heater return temperature
 */
 uint8_t states[16];
+uint8_t statesToCompare[16];
+uint8_t fveData[8];
+uint8_t fveDataToCompare[8];
+uint8_t temperatureDataToCompare[5];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
@@ -245,8 +263,11 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   if(channel == 1 && sensrId == sensorId)
   {
     outsideTemperature = temperature;
-    convert_to_utf8(rawData, 5, utf8Buffer);
-    client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
+    if(ArrayComparer(rawData, temperatureDataToCompare, 5))
+    {
+      convert_to_utf8(rawData, 5, utf8Buffer);
+      client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
+    }
     lcd.SetOutTemperature(temperature);
     computeRequiredTemperature();
   }
@@ -428,13 +449,15 @@ void sendHeaterToHomeAssistant()
     T = T >> 4;
   }
   averageWasteGasTemperatureCount = 0;
-  client.Publish(TOPIC_HEATERSTATE, states, 16, true);
-  Serial.println("Heater publish");
+  if(ArrayComparer(states, statesToCompare, 16))
+  {
+    client.Publish(TOPIC_HEATERSTATE, states, 16, true);
+    Serial.println("Heater publish");
+  }
 }
 
 void sendFVEToHomeAssistant()
 {
-  uint8_t fveData[8];
   fveData[0] = (voltage >> 8) & 0xFF;
   fveData[1] = voltage & 0xFF;
   fveData[2] = (current >> 8) & 0xFF;
@@ -443,9 +466,12 @@ void sendFVEToHomeAssistant()
   fveData[5] = consumption & 0xFF;
   fveData[6] = (power >> 8) & 0xFF;
   fveData[7] = power & 0xFF;
-  convert_to_utf8(fveData, 8, utf8Buffer);
-  client.Publish(TOPIC_FVE, (const char*)utf8Buffer, 16, true);
-  Serial.println("FVE publish");
+  if(ArrayComparer(fveData, fveDataToCompare, 8))
+  {
+    convert_to_utf8(fveData, 8, utf8Buffer);
+    client.Publish(TOPIC_FVE, (const char*)utf8Buffer, 16, true);
+    Serial.println("FVE publish");
+  }
   voltage = 0;
   current = 0;
   power = 0;
