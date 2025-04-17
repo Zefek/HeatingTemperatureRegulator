@@ -62,6 +62,11 @@ void TemperatureSensors::GetHeaterTemperature(uint8_t* temperature)
   GetTemperature(heaterTemperature, temperature);
 }
 
+void TemperatureSensors::GetBoilerTemperature(uint8_t* temperature)
+{
+  GetTemperature(boiler, temperature);
+}
+
 void TemperatureSensors::GetCurrentHeatingTemperature(float* temperature)
 {
   sensors->requestTemperaturesByAddress(currentHeating);
