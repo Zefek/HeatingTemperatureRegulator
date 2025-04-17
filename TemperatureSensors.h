@@ -20,6 +20,7 @@ class TemperatureSensors
     void GetReturnHeatingTemperature(uint8_t* temperature);
     void GetCurrentHeatingTemperature(float* temperature);
     void GetHeaterTemperature(uint8_t* temperature);
+    void GetBoilerTemperature(uint8_t* temperature);
     void Init();
 };
 #endif

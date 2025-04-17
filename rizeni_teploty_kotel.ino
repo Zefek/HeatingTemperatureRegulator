@@ -67,9 +67,10 @@ bool ArrayComparer(const uint8_t* first, uint8_t* second, uint8_t length)
 13 - heater Waste temperature B2
 14 - heater Waste temperature B3 (MSB)
 15 - heater return temperature
+16 - boiler temperature
 */
-uint8_t states[16];
-uint8_t statesToCompare[16];
+uint8_t states[17];
+uint8_t statesToCompare[17];
 uint8_t fveData[8];
 uint8_t fveDataToCompare[8];
 uint8_t temperatureDataToCompare[5];
@@ -339,7 +340,7 @@ bool ShouldBeHeatingOff()
   }
   if(mode == 1)
   {
-    return outsideTemperature > 14.5 || states[1] < MININPUTTEMPERATURE;
+    return states[1] < MININPUTTEMPERATURE;
   }
   if(mode == 2)
   {
@@ -356,7 +357,7 @@ bool ShouldBeHeatingOn()
   }
   if(mode == 1)
   {
-    return states[1] > MININPUTTEMPERATURE + 1 && outsideTemperature <= 14;
+    return states[1] > MININPUTTEMPERATURE + 1;
   }
   if(mode == 2)
   {
@@ -440,6 +441,7 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetAcumulator4Temperature(&states[9]);
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
+  tempSensors.GetBoilerTemperature(&states[16]);
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   int T = averageWasteGasTemperature;
   for(int i = 11; i < 15; i++)
@@ -449,9 +451,9 @@ void sendHeaterToHomeAssistant()
     T = T >> 4;
   }
   averageWasteGasTemperatureCount = 0;
-  if(ArrayComparer(states, statesToCompare, 16))
+  if(ArrayComparer(states, statesToCompare, 17))
   {
-    client.Publish(TOPIC_HEATERSTATE, states, 16, true);
+    client.Publish(TOPIC_HEATERSTATE, states, 17, true);
     Serial.println("Heater publish");
   }
 }
