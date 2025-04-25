@@ -113,7 +113,7 @@ unsigned int current = 0;
 unsigned int consumption = 0;
 unsigned int power = 0;
 unsigned int averageWasteGasTemperature = 0;
-unsigned long averageWasteGasTemperatureCount = 0;
+unsigned int averageWasteGasTemperatureCount = 0;
 BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
@@ -299,8 +299,18 @@ void ComputeWasteGasTemperature()
   gasTempValue = 1024 - gasTempValue;
   double R1 = (gasTempValue * 10000) / ((double)1024 - gasTempValue);
   int T = (int)((sqrt((-0.00232 * R1) + 17.59246) - 3.908) / 0.00116) * (-1);
-  averageWasteGasTemperature = ((averageWasteGasTemperature * averageWasteGasTemperatureCount) + T) / (averageWasteGasTemperatureCount + 1);
-  averageWasteGasTemperatureCount++;
+  if(T > 0 && T < 450)
+  {
+    if(averageWasteGasTemperatureCount < 100)
+    {
+      averageWasteGasTemperature = (int)((averageWasteGasTemperature * averageWasteGasTemperatureCount) + T) / ((double)averageWasteGasTemperatureCount + 1);
+      averageWasteGasTemperatureCount++;
+    }
+    else
+    {
+      averageWasteGasTemperature = (int)((1 / (double)averageWasteGasTemperatureCount) * T) + (((averageWasteGasTemperatureCount - 1) / (double)averageWasteGasTemperatureCount) * averageWasteGasTemperature);
+    }
+  }
 }
 
 void setRelay(int pDirection)
