@@ -112,8 +112,7 @@ unsigned int voltage = 0;
 unsigned int current = 0;
 unsigned int consumption = 0;
 unsigned int power = 0;
-unsigned int averageWasteGasTemperature = 0;
-unsigned int averageWasteGasTemperatureCount = 0;
+double averageWasteGasTemperature = 0;
 BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
 
 void setup() {
@@ -301,15 +300,8 @@ void ComputeWasteGasTemperature()
   int T = (int)((sqrt((-0.00232 * R1) + 17.59246) - 3.908) / 0.00116) * (-1);
   if(T > 0 && T < 450)
   {
-    if(averageWasteGasTemperatureCount < 100)
-    {
-      averageWasteGasTemperature = (int)((averageWasteGasTemperature * averageWasteGasTemperatureCount) + T) / ((double)averageWasteGasTemperatureCount + 1);
-      averageWasteGasTemperatureCount++;
-    }
-    else
-    {
-      averageWasteGasTemperature = (int)((1 / (double)averageWasteGasTemperatureCount) * T) + (((averageWasteGasTemperatureCount - 1) / (double)averageWasteGasTemperatureCount) * averageWasteGasTemperature);
-    }
+    averageWasteGasTemperature = ((1 / (double)60) * T) + ((59 / (double)60) * averageWasteGasTemperature);
+    lcd.SetWasteGasTemperature((int)averageWasteGasTemperature);
   }
 }
 
@@ -452,15 +444,14 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
   tempSensors.GetBoilerTemperature(&states[16]);
-  lcd.SetWasteGasTemperature(averageWasteGasTemperature);
-  int T = averageWasteGasTemperature;
+  lcd.SetWasteGasTemperature((int)averageWasteGasTemperature);
+  int T = (int)averageWasteGasTemperature;
   for(int i = 11; i < 15; i++)
   {
     uint8_t v = T & 0x0F;
     states[i] = v < 10? (char)('0'+v):(char)('7'+v);
     T = T >> 4;
   }
-  averageWasteGasTemperatureCount = 0;
   if(ArrayComparer(states, statesToCompare, 17))
   {
     client.Publish(TOPIC_HEATERSTATE, states, 17, true);
