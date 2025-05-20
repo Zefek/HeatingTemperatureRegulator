@@ -68,9 +68,13 @@ bool ArrayComparer(const uint8_t* first, uint8_t* second, uint8_t length)
 14 - heater Waste temperature B3 (MSB)
 15 - heater return temperature
 16 - boiler temperature
+17 - averageOutsideTemperature B0 (LSB)
+18 - averageOutsideTemperature B1
+19 - averageOutsideTemperature B2
+20 - averageOutsideTemperature B3 (MSB)
 */
-uint8_t states[17];
-uint8_t statesToCompare[17];
+uint8_t states[21];
+uint8_t statesToCompare[21];
 uint8_t fveData[8];
 uint8_t fveDataToCompare[8];
 uint8_t temperatureDataToCompare[5];
@@ -99,6 +103,8 @@ double lastCelsius = 25;
 short direction = 0;
 bool heatingOff = true;
 double outsideTemperature = 14;
+double outsideTemperatureAverage = 0;
+int outsideTemperatureAverageCount = 0;
 int sensor = 1;
 bool thermostat = false;
 double totalPower = 0;
@@ -143,8 +149,9 @@ void setup() {
   readInputTemperature();
   ComputeWasteGasTemperature();
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
+  ComputeOutsideTemperatureAverage();
   lcd.Print();
-  wdt_enable(WDTO_8S);
+  //wdt_enable(WDTO_8S);
 }
 
 void MQTTConnect()
@@ -269,7 +276,6 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
       client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
     }
     lcd.SetOutTemperature(temperature);
-    computeRequiredTemperature();
   }
 }
 
@@ -278,7 +284,7 @@ void computeRequiredTemperature()
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
   float zeroTemp = equithermalCurveZeroPoint;
-  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperature - insideTemperature) / (float) - insideTemperature, 0.76923));
+  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperatureAverage - insideTemperature) / (float) - insideTemperature, 0.76923));
 
   if(newValue < 10 || newValue > 80)
   {
@@ -289,6 +295,31 @@ void computeRequiredTemperature()
     value = newValue;
     lcd.SetRequiredTemperature((uint8_t)round(value));
     states[3] =  value;
+  }
+}
+
+void ComputeOutsideTemperatureAverage()
+{
+  double oldAverage = outsideTemperatureAverage;
+  if(outsideTemperatureAverageCount < 120)
+  {
+    outsideTemperatureAverage = ((outsideTemperatureAverage * outsideTemperatureAverageCount) + outsideTemperature) / (outsideTemperatureAverageCount + 1);
+    outsideTemperatureAverageCount++;
+  }
+  else
+  {
+    outsideTemperatureAverage = ((1 / (double)outsideTemperatureAverageCount) * outsideTemperature) + (((outsideTemperatureAverageCount - 1) / (double)outsideTemperatureAverageCount) * outsideTemperatureAverage);
+  }
+  if(oldAverage != outsideTemperatureAverage)
+  {
+    int T = (int)(outsideTemperatureAverage * 10);
+    for(int i = 17; i < 21; i++)
+    {
+      uint8_t v = T & 0x0F;
+      states[i] = v < 10? (char)('0'+v):(char)('7'+v);
+      T = T >> 4;
+    }
+    computeRequiredTemperature();
   }
 }
 
@@ -424,6 +455,7 @@ void sendToHomeAssistant()
   {
     if(sendIndex == 0)
     {
+      ComputeOutsideTemperatureAverage();
       sendHeaterToHomeAssistant();
       sendIndex = 1;
     }
@@ -435,6 +467,7 @@ void sendToHomeAssistant()
     lastMQTTSendMillis = currentMillis;
   }
 }
+
 void sendHeaterToHomeAssistant()
 {
   tempSensors.GetAcumulator1Temperature(&states[6]);
@@ -444,7 +477,6 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetReturnHeatingTemperature(&states[2]);
   tempSensors.GetHeaterTemperature(&states[10]);
   tempSensors.GetBoilerTemperature(&states[16]);
-  lcd.SetWasteGasTemperature((int)averageWasteGasTemperature);
   int T = (int)averageWasteGasTemperature;
   for(int i = 11; i < 15; i++)
   {
@@ -452,9 +484,9 @@ void sendHeaterToHomeAssistant()
     states[i] = v < 10? (char)('0'+v):(char)('7'+v);
     T = T >> 4;
   }
-  if(ArrayComparer(states, statesToCompare, 17))
+  if(ArrayComparer(states, statesToCompare, 21))
   {
-    client.Publish(TOPIC_HEATERSTATE, states, 17, true);
+    client.Publish(TOPIC_HEATERSTATE, states, 21, true);
     Serial.println("Heater publish");
   }
 }
