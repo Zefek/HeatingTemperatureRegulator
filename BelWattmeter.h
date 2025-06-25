@@ -1,5 +1,13 @@
 #include <Arduino.h>
 
+struct BelData
+{
+  int voltage = 0;
+  int current = 0;
+  int power = 0;
+  int consumption = 0;
+};
+
 class BelWattmeter
 {
   private:
@@ -19,8 +27,9 @@ class BelWattmeter
     byte crc = 0;
     bool crcOk = false;
     int counter = 0;
+    BelData data;
   public: 
-    BelWattmeter(int* voltage, int* current, int* consumption, int* power);
+    BelData GetBelData();
     void Loop();
     void Reset();
 };

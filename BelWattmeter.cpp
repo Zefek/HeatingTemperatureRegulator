@@ -1,13 +1,5 @@
 #include "BelWattmeter.h"
 
-BelWattmeter::BelWattmeter(int* voltage, int* current, int* consumption, int* power)
-{
-  this->voltage = voltage;
-  this->current = current;
-  this->consumption = consumption;
-  this->power = power;
-}
-
 void BelWattmeter::Loop()
 {
   while(Serial2.available())
@@ -56,10 +48,10 @@ void BelWattmeter::Loop()
     {
       if(crcOk && voltageTmp < 360 && currentTmp < 1600 && powerTmp < 4000)
       {
-        *voltage = ((unsigned long)*voltage * counter + voltageTmp) / (counter + 1);
-        *current = ((unsigned long)*current * counter + currentTmp) / (counter + 1);
-        *power = ((unsigned long)*power * counter + powerTmp) / (counter + 1);
-        *consumption = consumptionTmp;
+        data.voltage = ((unsigned long)data.voltage * counter + voltageTmp) / (counter + 1);
+        data.current = ((unsigned long)data.current * counter + currentTmp) / (counter + 1);
+        data.power = ((unsigned long)data.power * counter + powerTmp) / (counter + 1);
+        data.consumption = consumptionTmp;
         counter++;
       }
       voltageTmp = 0;
@@ -83,7 +75,16 @@ void BelWattmeter::Loop()
   }
 }
 
+BelData BelWattmeter::GetBelData()
+{
+  return data;
+}
+
 void BelWattmeter::Reset()
 {
+  data.voltage = 0;
+  data.current = 0;
+  data.power = 0;
+  data.consumption = 0;
   counter = 0;
 }

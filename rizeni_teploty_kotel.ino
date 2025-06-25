@@ -15,12 +15,30 @@
 #define MOREHEATINGRELAYPIN 8
 #define LESSHEATINGRELAYPIN 9
 #define HEATINGPUMPRELAYPIN 10
-#define MININPUTTEMPERATURE 30
+#define MININPUTTEMPERATURE 30 //Minimální teplota na výstupu z akumulace
 #define ONEWIREBUSPIN       7
+#define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
+#define SERVO1PC            700 //Jedno procento z intervalu serva
+#define PCONST              1500  //P konstanta pro PID
+#define DCONST              2000000 //D konstanta pro PID
+#define MINSERVOINTERVAL    1500    //Minimální interval pro aktivaci serva
+#define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
+#define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
+#define AVGWASTETEMPVALUES  60.0      //Počet hodnot pro výpočet průměrné teploty v komínu (počet sekund)
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
 void computeRequiredTemperature();
+
+void convertToHalfByte(int value, uint8_t* result, uint8_t length)
+{
+  for(int i = 0; i<length; i++)
+  {
+    uint8_t v = value & 0x0F;
+    result[i] = v < 10? (char)('0'+v):(char)('7'+v);
+    value = value >> 4;
+  }
+}
 
 void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
     unsigned char *out_ptr = output;
@@ -34,20 +52,6 @@ void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
     }
 
     output[j] = '\0'; // Null-terminate the UTF-8 string
-}
-
-bool ArrayComparer(const uint8_t* first, uint8_t* second, uint8_t length)
-{
-  bool result = false;
-  for(int i = 0; i < length; i++)
-  {
-    if(first[i] != second[i])
-    {
-      second[i] = first[i];
-      result = true;
-    }
-  }
-  return result;
 }
 
 /*
@@ -73,10 +77,41 @@ bool ArrayComparer(const uint8_t* first, uint8_t* second, uint8_t length)
 19 - averageOutsideTemperature B2
 20 - averageOutsideTemperature B3 (MSB)
 */
-uint8_t states[21];
-uint8_t statesToCompare[21];
-uint8_t fveData[8];
-uint8_t fveDataToCompare[8];
+#pragma pack(push, 1)
+struct HeaterState {
+  uint8_t currentTemp;
+  uint8_t inputTemp;
+  uint8_t returnTemp;
+  uint8_t setTemp;
+  uint8_t valvePosition;
+  uint8_t heatingActive;
+  uint8_t acum1;
+  uint8_t acum2;
+  uint8_t acum3;
+  uint8_t acum4;
+  uint8_t heaterTemp;
+  uint8_t wasteGasTemp[4];
+  uint8_t returnHeaterTemp;
+  uint8_t boilerTemp;
+  uint8_t outsideAvgTemp[4];
+};
+
+struct FVEData
+{
+  uint8_t voltage[4];
+  uint8_t current[4];
+  uint8_t power[4];
+  uint8_t consumption[4];
+};
+#pragma pack(pop)
+
+HeaterState currentState;
+HeaterState lastState;
+
+FVEData currentFveData;
+FVEData lastFveData;
+BelData belData;
+
 uint8_t temperatureDataToCompare[5];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
@@ -88,38 +123,38 @@ MQTTClient client(&drv, MQTTMessageReceive);
 
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
 
-unsigned long relayOnMillis = 0;
-unsigned long relayOffMillis = 0;
-unsigned long currentMillis = 0;
-unsigned long temperatureReadMillis = 0;
-unsigned long lastMQTTSendMillis = 0;
-unsigned long lastRegulatorMeassurement = 0;
+enum HeatingMode : uint8_t {
+  MODE_OFF = 0,
+  MODE_AUTOMATIC = 1,
+  MODE_THERMOSTAT = 2
+};
+
+uint32_t relayOnMillis = 0;
+uint32_t relayOffMillis = 0;
+uint32_t currentMillis = 0;
+uint32_t temperatureReadMillis = 0;
+uint32_t lastMQTTSendMillis = 0;
+uint32_t lastRegulatorMeasurement  = 0;
 long interval = 0;
-long position = 70000;
+long position = SERVOMAXRANGE;
 bool relayOn = false;
-float value = 25;
-float celsius = 25;
-double lastCelsius = 25;
-short direction = 0;
-bool heatingOff = true;
+int8_t direction = 0;
 double outsideTemperature = 14;
 double outsideTemperatureAverage = 0;
 int outsideTemperatureAverageCount = 0;
 int sensor = 1;
 bool thermostat = false;
-double totalPower = 0;
 uint8_t sensrId = 0;
-uint8_t mode = 1; //0 - Off, 1 - Automat, 2 - Thermostat
+int lastCurrentTemp = 0;
+HeatingMode mode = MODE_AUTOMATIC;
 uint8_t equithermalCurveZeroPoint = 40;
 double insideTemperature = 23;
 unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
-unsigned int voltage = 0; 
-unsigned int current = 0;
-unsigned int consumption = 0;
-unsigned int power = 0;
 double averageWasteGasTemperature = 0;
-BelWattmeter belWattmeter(&voltage, &current, &consumption, &power);
+BelWattmeter belWattmeter;
+unsigned long mqttConnectionTimeout = 0;
+unsigned long mqttLastConnectionTry = 0;
 
 void setup() {
   Serial.begin(57600);
@@ -145,7 +180,6 @@ void setup() {
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
   lcd.SetMode(mode);
   readCurrentHeatingTemperature();
-  lastCelsius = celsius;
   readInputTemperature();
   ComputeWasteGasTemperature();
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
@@ -156,6 +190,10 @@ void setup() {
 
 void MQTTConnect()
 {
+  if(currentMillis - mqttLastConnectionTry < mqttConnectionTimeout)
+  {
+    return;
+  }
   int wifiStatus = drv.GetConnectionStatus();
   Serial.print("Wifi status ");
   Serial.println(wifiStatus);
@@ -163,6 +201,7 @@ void MQTTConnect()
   if(wifiStatus == WL_DISCONNECTED || wifiStatus == WL_IDLE_STATUS)
   {
     wifiConnected = drv.Connect(WifiSSID, WifiPassword);
+    mqttLastConnectionTry = currentMillis;
   }
   if(wifiConnected)
   {
@@ -178,15 +217,23 @@ void MQTTConnect()
         client.Subscribe(TOPIC_ZEROPOINT);
         client.Subscribe(TOPIC_THERMOSTATSETCHANGED);
         client.Subscribe(TOPIC_CURRENTDATETIEM);
+        mqttLastConnectionTry = currentMillis;
+        mqttConnectionTimeout = 0;
       }
       else
       {
-        mode = 1;
+        mode = MODE_AUTOMATIC;
         lcd.SetMode(mode);
         equithermalCurveZeroPoint = 40;
         insideTemperature = 22.5;
+        mqttLastConnectionTry = currentMillis;
+        mqttConnectionTimeout = min(mqttConnectionTimeout + random(5000, 30000), 300000);
       }
     }
+  }
+  else
+  {
+    mqttConnectionTimeout = min(mqttConnectionTimeout + random(5000, 30000), 300000);
   }
 }
 
@@ -214,15 +261,15 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   {
     if(strcmp(mqttReceivedData, "Off") == 0)
     {        
-      mode = 0;
+      mode = MODE_OFF;
     }
     else if(strcmp(mqttReceivedData, "Automatic") == 0)
     {
-      mode = 1;
+      mode = MODE_AUTOMATIC;
     }
     else if (strcmp(mqttReceivedData, "Thermostat") == 0)
     {
-      mode = 2;
+      mode = MODE_THERMOSTAT;
     }
     lcd.SetMode(mode);
   }
@@ -256,7 +303,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton)
 {
-  if(temperature < -35 && temperature > 50)
+  if(temperature < -35 || temperature > 50)
   {
     return;
   }
@@ -264,16 +311,17 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   if(transmitedByButton && channel == 1)
   {
     sensrId = sensorId; 
-    EEPROM.put(0, sensorId);
+    EEPROM.update(0, sensorId);
   }
   
   if(channel == 1 && sensrId == sensorId)
   {
     outsideTemperature = temperature;
-    if(ArrayComparer(rawData, temperatureDataToCompare, 5))
+    if (memcmp(rawData, temperatureDataToCompare, sizeof(rawData)) != 0)
     {
       convert_to_utf8(rawData, 5, utf8Buffer);
       client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
+      memcpy(temperatureDataToCompare, rawData, sizeof(rawData));
     }
     lcd.SetOutTemperature(temperature);
   }
@@ -284,26 +332,32 @@ void computeRequiredTemperature()
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
   float zeroTemp = equithermalCurveZeroPoint;
-  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperatureAverage - insideTemperature) / (float) - insideTemperature, 0.76923));
+  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperatureAverage - insideTemperature) / (-insideTemperature), 0.76923));
 
   if(newValue < 10 || newValue > 80)
   {
     return;
   }
-  if(newValue != value)
+  if(newValue != currentState.setTemp)
   {
-    value = newValue;
-    lcd.SetRequiredTemperature((uint8_t)round(value));
-    states[3] =  value;
+    currentState.setTemp = newValue;
+    lcd.SetRequiredTemperature(currentState.setTemp);
   }
 }
 
 void ComputeOutsideTemperatureAverage()
 {
   double oldAverage = outsideTemperatureAverage;
-  if(outsideTemperatureAverageCount < 120)
+  if(outsideTemperatureAverageCount < AVGOUTTEMPVALUES)
   {
-    outsideTemperatureAverage = ((outsideTemperatureAverage * outsideTemperatureAverageCount) + outsideTemperature) / (outsideTemperatureAverageCount + 1);
+    if(outsideTemperatureAverageCount == 0)
+    {
+      outsideTemperatureAverage = outsideTemperature;
+    }
+    else
+    {
+      outsideTemperatureAverage = ((outsideTemperatureAverage * outsideTemperatureAverageCount) + outsideTemperature) / (outsideTemperatureAverageCount + 1);
+    }
     outsideTemperatureAverageCount++;
   }
   else
@@ -313,33 +367,33 @@ void ComputeOutsideTemperatureAverage()
   if(oldAverage != outsideTemperatureAverage)
   {
     int T = (int)(outsideTemperatureAverage * 10);
-    for(int i = 17; i < 21; i++)
-    {
-      uint8_t v = T & 0x0F;
-      states[i] = v < 10? (char)('0'+v):(char)('7'+v);
-      T = T >> 4;
-    }
+    convertToHalfByte(T, currentState.outsideAvgTemp, 4);
     computeRequiredTemperature();
   }
 }
 
 void ComputeWasteGasTemperature()
 {
-  unsigned long gasTempValue = analogRead(A0);
+  uint32_t gasTempValue = analogRead(A0);
   gasTempValue = 1024 - gasTempValue;
   double R1 = (gasTempValue * 10000) / ((double)1024 - gasTempValue);
   int T = (int)((sqrt((-0.00232 * R1) + 17.59246) - 3.908) / 0.00116) * (-1);
   if(T > 0 && T < 450)
   {
-    averageWasteGasTemperature = ((1 / (double)60) * T) + ((59 / (double)60) * averageWasteGasTemperature);
+    if(averageWasteGasTemperature == 0)
+    {
+      averageWasteGasTemperature = T;
+    }
+    else
+    {
+      averageWasteGasTemperature = ((1 / AVGWASTETEMPVALUES) * T) + (((AVGWASTETEMPVALUES - 1) / AVGWASTETEMPVALUES) * averageWasteGasTemperature);
+    }
     lcd.SetWasteGasTemperature((int)averageWasteGasTemperature);
   }
 }
 
 void setRelay(int pDirection)
 {
-  //value - celsius - 1 - nastavená 50, naměřená 40 = 50-40-1 = 9 => value > 0, direction = 1
-  //value - celsius - nastavená 50, naměřená 60 = 50-60 = -10 => value < 0, direction = -1
   if(pDirection == -1)
   {
     digitalWrite(LESSHEATINGRELAYPIN, LOW);
@@ -347,8 +401,6 @@ void setRelay(int pDirection)
     relayOnMillis = currentMillis;
     direction = -1;
   }
-  //value - celsis  - nastavená 50, naměřená 40 = 40-50=>10 => value > 0, direction = 1
-  //value - celsius - nastavená 50, naměřená 50,68 = 50-50,68 = 0,68 - 0,5 = 0,18
   if(pDirection == 1)
   {
     digitalWrite(MOREHEATINGRELAYPIN, LOW);
@@ -373,11 +425,11 @@ bool ShouldBeHeatingOff()
   }
   if(mode == 1)
   {
-    return states[1] < MININPUTTEMPERATURE;
+    return currentState.currentTemp < MININPUTTEMPERATURE;
   }
   if(mode == 2)
   {
-    return !thermostat || states[1] < MININPUTTEMPERATURE;
+    return !thermostat || currentState.currentTemp < MININPUTTEMPERATURE;
   }
   return false;
 }
@@ -390,61 +442,58 @@ bool ShouldBeHeatingOn()
   }
   if(mode == 1)
   {
-    return states[1] > MININPUTTEMPERATURE + 1;
+    return currentState.currentTemp > MININPUTTEMPERATURE + 1;
   }
   if(mode == 2)
   {
-    return thermostat && states[1] > MININPUTTEMPERATURE + 1;
+    return thermostat && currentState.currentTemp > MININPUTTEMPERATURE + 1;
   }
   return false;
 }
 
 void checkHeating()
 {
-  if(!heatingOff && ShouldBeHeatingOff())
+  if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
-    heatingOff = true;
     digitalWrite(LESSHEATINGRELAYPIN, LOW);
     digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
-    interval = 70000;
+    interval = SERVOMAXRANGE;
     direction = -1;
     relayOn = true;
     relayOnMillis = currentMillis;
-    states[5] = 0;
+    currentState.heatingActive = 0;
   }
-  if(heatingOff && ShouldBeHeatingOn())
+  if(currentState.heatingActive == 0 && ShouldBeHeatingOn())
   {
-    heatingOff = false;
-    states[5] = 1;
+    currentState.heatingActive = 1;
     digitalWrite(HEATINGPUMPRELAYPIN, LOW);
   }
-  lcd.SetHeating(!heatingOff);
+  lcd.SetHeating(currentState.heatingActive == 1? true : false);
 }
 
 void readInputTemperature()
 {
-  uint8_t newInputTemperature = states[1];
+  uint8_t newInputTemperature = currentState.inputTemp;
   tempSensors.GetAcumulatorOutputTemperature(&newInputTemperature);
-  if(states[1] != newInputTemperature)
+  if(currentState.inputTemp != newInputTemperature)
   { 
     lcd.SetInputTemperature(newInputTemperature);
-    states[1] = newInputTemperature;
+    currentState.inputTemp = newInputTemperature;
   }
 }
 
 void readCurrentHeatingTemperature()
 {
-  float newCelsius = celsius;
+  uint8_t newCelsius = currentState.currentTemp;
   tempSensors.GetCurrentHeatingTemperature(&newCelsius);
-  if(newCelsius < 0 || newCelsius > 100)
+  if(newCelsius > 100)
   {
     return;
   }
-  if(newCelsius < celsius - 0.5 || newCelsius > celsius + 0.5)
+  if(newCelsius != currentState.currentTemp)
   {
-    celsius = newCelsius;
-    lcd.SetCurrentHeatingTemperature((uint8_t)round(celsius));
-    states[0] = (uint8_t)round(celsius);
+    currentState.currentTemp = (uint8_t)round(newCelsius);
+    lcd.SetCurrentHeatingTemperature(currentState.currentTemp);
   }
 }
 
@@ -470,47 +519,39 @@ void sendToHomeAssistant()
 
 void sendHeaterToHomeAssistant()
 {
-  tempSensors.GetAcumulator1Temperature(&states[6]);
-  tempSensors.GetAcumulator2Temperature(&states[7]);
-  tempSensors.GetAcumulator3Temperature(&states[8]);
-  tempSensors.GetAcumulator4Temperature(&states[9]);
-  tempSensors.GetReturnHeatingTemperature(&states[2]);
-  tempSensors.GetHeaterTemperature(&states[10]);
-  tempSensors.GetBoilerTemperature(&states[16]);
-  int T = (int)averageWasteGasTemperature;
-  for(int i = 11; i < 15; i++)
+  tempSensors.GetAcumulator1Temperature(&currentState.acum1);
+  tempSensors.GetAcumulator2Temperature(&currentState.acum2);
+  tempSensors.GetAcumulator3Temperature(&currentState.acum3);
+  tempSensors.GetAcumulator4Temperature(&currentState.acum4);
+  tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp);
+  tempSensors.GetHeaterTemperature(&currentState.heaterTemp);
+  tempSensors.GetBoilerTemperature(&currentState.boilerTemp);
+  convertToHalfByte((int)averageWasteGasTemperature, currentState.wasteGasTemp, 4);
+  if (memcmp(&currentState, &lastState, sizeof(HeaterState)) != 0)
   {
-    uint8_t v = T & 0x0F;
-    states[i] = v < 10? (char)('0'+v):(char)('7'+v);
-    T = T >> 4;
-  }
-  if(ArrayComparer(states, statesToCompare, 21))
-  {
-    client.Publish(TOPIC_HEATERSTATE, states, 21, true);
+    uint8_t buffer[sizeof(HeaterState)];
+    memcpy(buffer, &currentState, sizeof(HeaterState));
+    client.Publish(TOPIC_HEATERSTATE, buffer, sizeof(HeaterState), true);
     Serial.println("Heater publish");
+    memcpy(&lastState, &currentState, sizeof(HeaterState));
   }
 }
 
 void sendFVEToHomeAssistant()
 {
-  fveData[0] = (voltage >> 8) & 0xFF;
-  fveData[1] = voltage & 0xFF;
-  fveData[2] = (current >> 8) & 0xFF;
-  fveData[3] = current & 0xFF;
-  fveData[4] = (consumption >> 8) & 0xFF;
-  fveData[5] = consumption & 0xFF;
-  fveData[6] = (power >> 8) & 0xFF;
-  fveData[7] = power & 0xFF;
-  if(ArrayComparer(fveData, fveDataToCompare, 8))
+  BelData data = belWattmeter.GetBelData();
+  convertToHalfByte(data.voltage, currentFveData.voltage, 4);
+  convertToHalfByte(data.current, currentFveData.current, 4);
+  convertToHalfByte(data.consumption, currentFveData.consumption, 4);
+  convertToHalfByte(data.power, currentFveData.power, 4);
+  if (memcmp(&currentFveData, &lastFveData, sizeof(FVEData)) != 0)
   {
-    convert_to_utf8(fveData, 8, utf8Buffer);
-    client.Publish(TOPIC_FVE, (const char*)utf8Buffer, 16, true);
+    uint8_t buffer[sizeof(FVEData)];
+    memcpy(buffer, &currentFveData, sizeof(FVEData));
+    client.Publish(TOPIC_FVE, (char*)buffer, sizeof(buffer), true);
     Serial.println("FVE publish");
+    memcpy(&lastFveData, &currentFveData, sizeof(FVEData));
   }
-  voltage = 0;
-  current = 0;
-  power = 0;
-  consumption = 0;
   belWattmeter.Reset();
 }
 
@@ -540,39 +581,22 @@ void loop() {
   {
     setRelayOff();
     position += interval * direction;
-    position = min(max(position, 0), 70000);
-    states[4] = (uint8_t)round(position/(double)700);
+    position = min(max(position, 0), SERVOMAXRANGE);
+    currentState.valvePosition = (uint8_t)round(position/(double)SERVO1PC);
     relayOffMillis = currentMillis;
   }
  
-  if(!heatingOff && currentMillis - lastRegulatorMeassurement > 20000)
+  if(currentState.heatingActive == 1 && currentMillis - lastRegulatorMeasurement  > TEMPCHECKINTERVAL)
   {
-    /*
-    Serial.print("P: ");
-    Serial.print(value);
-    Serial.print(" - ");
-    Serial.print(celsius);
-    Serial.print(" = ");
-    Serial.print(value - celsius);
-    Serial.print(" D: ");
-    Serial.print(celsius);
-    Serial.print(" - ");
-    Serial.print(lastCelsius);
-    Serial.print(" = ");
-    Serial.println(celsius - lastCelsius);
-    */
-    long intervalTmp = ((value - celsius) * 600) - ((celsius - lastCelsius) * 4500);
-    lastCelsius = celsius;
-    if(intervalTmp <= 0 && !relayOn)
+    int diff = (int)currentState.setTemp - (int)currentState.currentTemp;
+    double change = ((int)lastCurrentTemp - (int)currentState.currentTemp) / ((double)(currentMillis - lastRegulatorMeasurement));
+    long newInterval = constrain((diff * PCONST) + (change * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE);
+    lastCurrentTemp = currentState.currentTemp;
+    if(abs(newInterval) > MINSERVOINTERVAL && !relayOn)
     {
-      interval = min(abs(intervalTmp), 70000);
-      setRelay(-1);
+      interval = abs(newInterval);
+      setRelay(newInterval < 0? - 1 : 1);
     }
-    else if(value - celsius > 0 && !relayOn)
-    {
-      interval = min(abs(intervalTmp), 70000);
-      setRelay(1);
-    }
-    lastRegulatorMeassurement = currentMillis;
+    lastRegulatorMeasurement  = currentMillis;
   }
 }
