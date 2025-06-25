@@ -67,27 +67,9 @@ void TemperatureSensors::GetBoilerTemperature(uint8_t* temperature)
   GetTemperature(boiler, temperature);
 }
 
-void TemperatureSensors::GetCurrentHeatingTemperature(float* temperature)
+void TemperatureSensors::GetCurrentHeatingTemperature(uint8_t* temperature)
 {
-  sensors->requestTemperaturesByAddress(currentHeating);
-  float temp = sensors->getTempC(currentHeating);
-  if(temp == -127)
-  {
-    return;
-  }
-  if(temp == -254)
-  {
-    return;
-  }
-  if(temp == -253)
-  {
-    return;
-  }
-  if(temp == -252)
-  {
-    return;
-  }
-  *temperature = temp;
+  GetTemperature(currentHeating, temperature);
 }
 
 void TemperatureSensors::GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature)
