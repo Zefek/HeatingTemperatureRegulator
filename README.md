@@ -106,6 +106,9 @@ automation:
 ![heater_regulator](https://github.com/user-attachments/assets/4e85691c-065a-4078-b046-f0943ee74d2e)
 
 Na pinu 7 jsou DS18B20 snímače pro snímání teplot kotle, akumulace a bojleru. Snímač pro teplotu spalin je PT1000. 
+
+![image](https://github.com/user-attachments/assets/df01f1ed-c163-43c2-801e-ac2c6a9aa728)
+
 Pro zprovoznění regulátoru je potřeba soubor config.h
 ```
 //SSID Wifi pro připojení k wifi
