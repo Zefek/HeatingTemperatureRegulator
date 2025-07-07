@@ -147,6 +147,7 @@ bool thermostat = false;
 uint8_t sensrId = 0;
 int lastCurrentTemp = 0;
 HeatingMode mode = MODE_AUTOMATIC;
+HeatingMode previousMode = MODE_AUTOMATIC;
 float equithermalCurveZeroPoint = 40;
 double insideTemperature = 23;
 unsigned char utf8Buffer[32];
@@ -156,6 +157,7 @@ BelWattmeter belWattmeter;
 unsigned long mqttConnectionTimeout = 0;
 unsigned long mqttLastConnectionTry = 0;
 double exponent = 0.76923;
+bool shouldHeatingBeOnByTemperature = false;
 
 void setup() {
   Serial.begin(57600);
@@ -263,7 +265,14 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   {
     if(strcmp(mqttReceivedData, "Off") == 0)
     {        
-      mode = MODE_OFF;
+      if(shouldHeatingBeOnByTemperature)
+      {
+        previousMode = MODE_OFF;
+      }
+      else
+      {
+        mode = MODE_OFF;
+      }
     }
     else if(strcmp(mqttReceivedData, "Automatic") == 0)
     {
@@ -271,7 +280,14 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     }
     else if (strcmp(mqttReceivedData, "Thermostat") == 0)
     {
-      mode = MODE_THERMOSTAT;
+      if(shouldHeatingBeOnByTemperature)
+      {
+        previousMode = MODE_THERMOSTAT;
+      }
+      else
+      {
+        mode = MODE_THERMOSTAT;
+      }
     }
     lcd.SetMode(mode);
   }
@@ -457,6 +473,19 @@ bool ShouldBeHeatingOn()
 
 void checkHeating()
 {
+  if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= 80)
+  {
+    previousMode = mode;
+    mode = MODE_AUTOMATIC;
+    shouldHeatingBeOnByTemperature = true;
+    lcd.SetMode(mode);
+  }
+  if(shouldHeatingBeOnByTemperature && currentState.heaterTemp < 76)
+  {
+    mode = previousMode;
+    shouldHeatingBeOnByTemperature = false;
+    lcd.SetMode(mode);
+  }
   if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
     digitalWrite(LESSHEATINGRELAYPIN, LOW);
