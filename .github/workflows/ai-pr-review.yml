@@ -19,7 +19,11 @@ jobs:
 
       - name: Install dependencies
         run: pip install openai requests
-
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          
       - name: Create diff file
         run: git diff origin/${{ github.base_ref }}...HEAD > diff.patch
 
