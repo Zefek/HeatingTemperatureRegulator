@@ -147,7 +147,7 @@ bool thermostat = false;
 uint8_t sensrId = 0;
 int lastCurrentTemp = 0;
 HeatingMode mode = MODE_AUTOMATIC;
-uint8_t equithermalCurveZeroPoint = 40;
+float equithermalCurveZeroPoint = 40;
 double insideTemperature = 23;
 unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
@@ -155,6 +155,7 @@ double averageWasteGasTemperature = 0;
 BelWattmeter belWattmeter;
 unsigned long mqttConnectionTimeout = 0;
 unsigned long mqttLastConnectionTry = 0;
+double exponent = 0.76923;
 
 void setup() {
   Serial.begin(57600);
@@ -225,6 +226,7 @@ void MQTTConnect()
         mode = MODE_AUTOMATIC;
         lcd.SetMode(mode);
         equithermalCurveZeroPoint = 40;
+        exponent = 0.76923;
         insideTemperature = 22.5;
         mqttLastConnectionTry = currentMillis;
         mqttConnectionTimeout = min(mqttConnectionTimeout + random(5000, 30000), 300000);
@@ -276,9 +278,11 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Bod na nule v topné křivce
   if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
   {
-    int t = 0;
-    sscanf(mqttReceivedData, "%d", &t);
-    equithermalCurveZeroPoint = t;
+    char* token;
+    token = strtok(mqttReceivedData, ";");
+    equithermalCurveZeroPoint = atof(token);
+    token = strtok(NULL, ";");
+    exponent = atof(token);
     computeRequiredTemperature();
   }
   //Nastavení data a času
@@ -332,7 +336,7 @@ void computeRequiredTemperature()
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
   float zeroTemp = equithermalCurveZeroPoint;
-  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperatureAverage - insideTemperature) / (-insideTemperature), 0.76923));
+  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperatureAverage - insideTemperature) / (-insideTemperature), exponent));
 
   if(newValue < 10 || newValue > 80)
   {
