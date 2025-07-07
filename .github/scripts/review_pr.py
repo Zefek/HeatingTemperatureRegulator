@@ -11,7 +11,7 @@ with open("diff.patch", "r", encoding="utf-8") as f:
 
 # Vytvoř požadavek na GPT-4
 response = client.chat.completions.create(
-    model="gpt-4",
+    model="gpt-3.5-turbo",
     messages=[
         {"role": "system", "content": "Jsi zkušený reviewer. Zhodnoť změny v PR."},
         {"role": "user", "content": f"Zde jsou změny v kódu:\n\n{pr_diff}"}
