@@ -3,33 +3,36 @@ import os
 import requests
 
 # Nastavení OpenAI
-openai.api_key = os.getenv(OPENAI_API_KEY)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Získání dat o PR z GitHubu (pomocí GitHub Actions se předá kontext, nebo použij GraphQL REST API)
-pr_diff = open(diff.patch).read()  # nebo načíst pomocí API
+# Načti diff PR ze souboru nebo API
+with open("diff.patch", "r", encoding="utf-8") as f:
+    pr_diff = f.read()
 
-# Dotaz na GPT
+# Vytvoř požadavek na GPT-4
 response = openai.ChatCompletion.create(
-    model=gpt-4,
+    model="gpt-4",
     messages=[
-        {role system, content Jsi zkušený reviewer kódu. Zhodnoť změny v PR.},
-        {role user, content fZde je diff pull requestunn{pr_diff}}
+        {"role": "system", "content": "Jsi zkušený reviewer kódu. Zhodnoť změny v PR."},
+        {"role": "user", "content": f"Zde je diff pull requestu:\n\n{pr_diff}"}
     ],
     temperature=0.3
 )
 
-review = response[choices][0][message][content]
+review = response["choices"][0]["message"]["content"]
 
 # Odeslání komentáře zpět do GitHub PR
 headers = {
-    Authorization fBearer {os.getenv('GITHUB_TOKEN')},
-    Accept applicationvnd.github.v3+json
+    "Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}",
+    "Accept": "application/vnd.github.v3+json"
 }
-repo = os.getenv(GITHUB_REPOSITORY)
-pr_number = os.getenv(GITHUB_REF).split()[-1]
+repo = os.getenv("GITHUB_REPOSITORY")
+pr_number = os.getenv("GITHUB_REF").split("/")[-1]
 
-requests.post(
-    fhttpsapi.github.comrepos{repo}issues{pr_number}comments,
+response = requests.post(
+    f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments",
     headers=headers,
-    json={body review}
+    json={"body": review}
 )
+
+print("Komentář přidán:", response.status_code)
