@@ -1,5 +1,4 @@
-# .github/workflows/ai-pr-review.yml
-name: AI PR Reviewer
+name: AI Code Reviewer
 
 on:
   pull_request:
@@ -8,10 +7,23 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
-      - name: Run AI Review Script
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openai requests
+
+      - name: Create diff file
+        run: git diff origin/${{ github.base_ref }}...HEAD > diff.patch
+
+      - name: Run AI Review
         run: python .github/scripts/review_pr.py
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
