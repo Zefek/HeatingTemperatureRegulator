@@ -149,7 +149,7 @@ int lastCurrentTemp = 0;
 HeatingMode mode = MODE_AUTOMATIC;
 HeatingMode previousMode = MODE_AUTOMATIC;
 float equithermalCurveZeroPoint = 40;
-double insideTemperature = 23;
+double insideTemperature = 22.5;
 unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
 double averageWasteGasTemperature = 0;
@@ -158,6 +158,7 @@ unsigned long mqttConnectionTimeout = 0;
 unsigned long mqttLastConnectionTry = 0;
 double exponent = 0.76923;
 bool shouldHeatingBeOnByTemperature = false;
+bool outsideTemperatureWasSet = false;
 
 void setup() {
   Serial.begin(57600);
@@ -265,14 +266,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   {
     if(strcmp(mqttReceivedData, "Off") == 0)
     {        
-      if(shouldHeatingBeOnByTemperature)
-      {
-        previousMode = MODE_OFF;
-      }
-      else
-      {
-        mode = MODE_OFF;
-      }
+      mode = MODE_OFF;
     }
     else if(strcmp(mqttReceivedData, "Automatic") == 0)
     {
@@ -280,14 +274,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     }
     else if (strcmp(mqttReceivedData, "Thermostat") == 0)
     {
-      if(shouldHeatingBeOnByTemperature)
-      {
-        previousMode = MODE_THERMOSTAT;
-      }
-      else
-      {
-        mode = MODE_THERMOSTAT;
-      }
+      mode = MODE_THERMOSTAT;
     }
     lcd.SetMode(mode);
   }
@@ -343,6 +330,7 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
       client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
       memcpy(temperatureDataToCompare, rawData, sizeof(rawData));
     }
+    outsideTemperatureWasSet = true;
     lcd.SetOutTemperature(temperature);
   }
 }
@@ -352,7 +340,12 @@ void computeRequiredTemperature()
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
   float zeroTemp = equithermalCurveZeroPoint;
-  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow((outsideTemperatureAverage - insideTemperature) / (-insideTemperature), exponent));
+  double outsideTemp = outsideTemperatureAverage;
+  if(!outsideTemperatureWasSet)
+  {
+    outsideTemp = outsideTemperature;
+  }
+  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow(max(0, (outsideTemperatureAverage - insideTemperature) / (-insideTemperature)), exponent));
 
   if(newValue < 10 || newValue > 80)
   {
@@ -367,6 +360,10 @@ void computeRequiredTemperature()
 
 void ComputeOutsideTemperatureAverage()
 {
+  if(!outsideTemperatureWasSet)
+  {
+    return;
+  }
   double oldAverage = outsideTemperatureAverage;
   if(outsideTemperatureAverageCount < AVGOUTTEMPVALUES)
   {
