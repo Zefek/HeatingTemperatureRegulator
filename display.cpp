@@ -33,24 +33,32 @@
       }
     }
     
-    void Display::printOutTemperature()
+    void Display::printOutTemperature(bool blink)
     {
-      //celkem 6 míst -10.00
-      lcd->setCursor(9, 1);
-      lcd->print("       ");
-      lcd->setCursor(9, 1);
-      if(outTemperature >= 0 && outTemperature < 10)
+      if(blink)
       {
-        //8.98
-        lcd->print("  ");
+        lcd->setCursor(9, 1);
+        lcd->print("       ");
       }
-      if((outTemperature > -10 && outTemperature < 0) || outTemperature >= 10)
+      else
       {
-        //-8.89
-        lcd->print(" ");
+        //celkem 6 míst -10.00
+        lcd->setCursor(9, 1);
+        lcd->print("       ");
+        lcd->setCursor(9, 1);
+        if(outTemperature >= 0 && outTemperature < 10)
+        {
+          //8.98
+          lcd->print("  ");
+        }
+        if((outTemperature > -10 && outTemperature < 0) || outTemperature >= 10)
+        {
+          //-8.89
+          lcd->print(" ");
+        }
+        lcd->print(outTemperature);
+        lcd->write((byte)1);
       }
-      lcd->print(outTemperature);
-      lcd->write((byte)1);
     }
 
     Display::Display(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows)
@@ -89,8 +97,9 @@
       if(this->outTemperature != outTemperature)
       {
         this->outTemperature = outTemperature;
-        printOutTemperature();
+        printOutTemperature(false);
       }
+      outsideTemperatureWasSet = true;
     }
 
     void Display::SetWasteGasTemperature(int wasteGasTemperature)
@@ -186,6 +195,10 @@
           lcd->setCursor(4, 0);
           lcd->print(" ");
         }
+      }
+      if(!outsideTemperatureWasSet)
+      {
+        printOutTemperature(blinkCount % 2 != 0);
       }
       blinkCount++;
     }
