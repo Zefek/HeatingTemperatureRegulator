@@ -233,7 +233,7 @@ void MQTTConnect()
         exponent = 0.76923;
         insideTemperature = 22.5;
         mqttLastConnectionTry = currentMillis;
-        mqttConnectionTimeout = min(mqttConnectionTimeout + random(5000, 30000), 300000);
+        mqttConnectionTimeout = min(mqttConnectionTimeout * 2 + random(0, 5000), 300000);
       }
     }
   }
