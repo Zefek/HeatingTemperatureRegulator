@@ -106,10 +106,8 @@ struct FVEData
 #pragma pack(pop)
 
 HeaterState currentState;
-HeaterState lastState;
 
 FVEData currentFveData;
-FVEData lastFveData;
 BelData belData;
 
 uint8_t temperatureDataToCompare[5];
@@ -239,7 +237,8 @@ void MQTTConnect()
   }
   else
   {
-    mqttConnectionTimeout = min(mqttConnectionTimeout + random(5000, 30000), 300000);
+    mqttLastConnectionTry = currentMillis;
+    mqttConnectionTimeout = min(mqttConnectionTimeout * 2 + random(5000, 30000), 300000);
   }
 }
 
@@ -558,30 +557,24 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetHeaterTemperature(&currentState.heaterTemp);
   tempSensors.GetBoilerTemperature(&currentState.boilerTemp);
   convertToHalfByte((int)averageWasteGasTemperature, currentState.wasteGasTemp, 4);
-  if (memcmp(&currentState, &lastState, sizeof(HeaterState)) != 0)
-  {
-    uint8_t buffer[sizeof(HeaterState)];
-    memcpy(buffer, &currentState, sizeof(HeaterState));
-    client.Publish(TOPIC_HEATERSTATE, buffer, sizeof(HeaterState), true);
-    Serial.println("Heater publish");
-    memcpy(&lastState, &currentState, sizeof(HeaterState));
-  }
+  uint8_t buffer[sizeof(HeaterState)];
+  memcpy(buffer, &currentState, sizeof(HeaterState));
+  client.Publish(TOPIC_HEATERSTATE, buffer, sizeof(HeaterState), true);
+  Serial.println("Heater publish");
 }
 
 void sendFVEToHomeAssistant()
 {
   BelData data = belWattmeter.GetBelData();
-  convertToHalfByte(data.voltage, currentFveData.voltage, 4);
-  convertToHalfByte(data.current, currentFveData.current, 4);
-  convertToHalfByte(data.consumption, currentFveData.consumption, 4);
-  convertToHalfByte(data.power, currentFveData.power, 4);
-  if (memcmp(&currentFveData, &lastFveData, sizeof(FVEData)) != 0)
+  if(data.voltage > 0 || data.current > 0 || data.consumption > 0 || data.power > 0)
   {
+    convertToHalfByte(data.voltage, currentFveData.voltage, 4);
+    convertToHalfByte(data.current, currentFveData.current, 4);
+    convertToHalfByte(data.consumption, currentFveData.consumption, 4);
+    convertToHalfByte(data.power, currentFveData.power, 4);
     uint8_t buffer[sizeof(FVEData)];
-    memcpy(buffer, &currentFveData, sizeof(FVEData));
     client.Publish(TOPIC_FVE, (char*)buffer, sizeof(buffer), true);
     Serial.println("FVE publish");
-    memcpy(&lastFveData, &currentFveData, sizeof(FVEData));
   }
   belWattmeter.Reset();
 }
