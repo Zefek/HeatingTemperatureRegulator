@@ -573,6 +573,7 @@ void sendFVEToHomeAssistant()
     convertToHalfByte(data.consumption, currentFveData.consumption, 4);
     convertToHalfByte(data.power, currentFveData.power, 4);
     uint8_t buffer[sizeof(FVEData)];
+    memcpy(buffer, &currentFveData, sizeof(FVEData));
     client.Publish(TOPIC_FVE, (char*)buffer, sizeof(buffer), true);
     Serial.println("FVE publish");
   }
