@@ -573,7 +573,7 @@ void sendFVEToHomeAssistant()
     //IsOnline
     if(!fveOnlineSent)
     {
-      client.Publish(TOPIC_FVE_STATE, "Online", sizeof(buffer), true);
+      client.Publish(TOPIC_FVE_STATE, "Online", true);
       fveOnlineSent = true;
       fveOfflineSent = false;
     }
@@ -590,7 +590,7 @@ void sendFVEToHomeAssistant()
   {
     if(!fveOfflineSent)
     {
-      client.Publish(TOPIC_FVE_STATE, "Offline", sizeof(buffer), true);
+      client.Publish(TOPIC_FVE_STATE, "Offline", true);
       fveOnlineSent = false;
       fveOfflineSent = true;
     }
