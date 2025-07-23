@@ -157,6 +157,8 @@ unsigned long mqttLastConnectionTry = 0;
 double exponent = 0.76923;
 bool shouldHeatingBeOnByTemperature = false;
 bool outsideTemperatureWasSet = false;
+bool fveOnlineSent = false;
+bool fveOfflineSent = false;
 
 void setup() {
   Serial.begin(57600);
@@ -568,6 +570,13 @@ void sendFVEToHomeAssistant()
   BelData data = belWattmeter.GetBelData();
   if(data.voltage > 0 || data.current > 0 || data.consumption > 0 || data.power > 0)
   {
+    //IsOnline
+    if(!fveOnlineSent)
+    {
+      client.Publish(TOPIC_FVE_STATE, "Online", true);
+      fveOnlineSent = true;
+      fveOfflineSent = false;
+    }
     convertToHalfByte(data.voltage, currentFveData.voltage, 4);
     convertToHalfByte(data.current, currentFveData.current, 4);
     convertToHalfByte(data.consumption, currentFveData.consumption, 4);
@@ -576,6 +585,15 @@ void sendFVEToHomeAssistant()
     memcpy(buffer, &currentFveData, sizeof(FVEData));
     client.Publish(TOPIC_FVE, (char*)buffer, sizeof(buffer), true);
     Serial.println("FVE publish");
+  }
+  else
+  {
+    if(!fveOfflineSent)
+    {
+      client.Publish(TOPIC_FVE_STATE, "Offline", true);
+      fveOnlineSent = false;
+      fveOfflineSent = true;
+    }
   }
   belWattmeter.Reset();
 }
