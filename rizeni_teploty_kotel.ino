@@ -242,6 +242,19 @@ void MQTTConnect()
   }
 }
 
+bool IsLeapYear(int year)
+{
+  if(year % 4 != 0)
+  {
+    return false;
+  }
+  if(year % 100 != 0)
+  {
+    return true;
+  }
+  return year % 400 == 0;
+}
+
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
 {
   for(int i = 0; i<length; i++)
@@ -292,15 +305,27 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   if(strcmp(topic, TOPIC_CURRENTDATETIEM) == 0)
   {
     int day, month, year, hour, minute, second;
-    sscanf(mqttReceivedData, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
-    Ds1302::DateTime dt;
-    dt.hour = hour;
-    dt.minute = minute;
-    dt.second = second;
-    dt.day = day;
-    dt.month = month;
-    dt.year = year;
-    rtc.setDateTime(&dt);
+    int result = sscanf(mqttReceivedData, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+    if(result == 6
+      && year >= 2000 && year <= 2100
+      && month >= 1 && month <= 12
+      && day >= 1 && day <= 31
+      && hour >= 0 && hour < 24
+      && minute >= 0 && minute < 60
+      && second >= 0 && minute < 60
+      && (((month == 4 || month == 6 || month == 9 || month == 11) && day <= 30)
+        || ((month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12) && day <= 31)
+        || ((month == 2 && IsLeapYear(year) && day <= 29) || ( month == 2 && !IsLeapYear(year) && day <= 28 ))))
+    {
+      Ds1302::DateTime dt;
+      dt.hour = hour;
+      dt.minute = minute;
+      dt.second = second;
+      dt.day = day;
+      dt.month = month;
+      dt.year = year;
+      rtc.setDateTime(&dt);
+    }
   }
   if(strcmp(topic, TOPIC_THERMOSTATSETCHANGED) == 0)
   {
