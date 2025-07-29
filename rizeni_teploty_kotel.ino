@@ -660,6 +660,19 @@ void loop() {
     double change = ((int)lastCurrentTemp - (int)currentState.currentTemp) / ((double)(currentMillis - lastRegulatorMeasurement));
     long newInterval = constrain((diff * PCONST) + (change * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE);
     lastCurrentTemp = currentState.currentTemp;
+    Serial.print(currentMillis);
+    Serial.print(";");
+    Serial.print((int)currentState.setTemp);
+    Serial.print(";");
+    Serial.print((int)currentState.currentTemp);
+    Serial.print(";");
+    Serial.print(currentState.valvePosition);
+    Serial.print(";");
+    Serial.print(diff * PCONST);
+    Serial.print(";");
+    Serial.print(change * DCONST);
+    Serial.print(";");
+    Serial.println(relayOn);
     if(abs(newInterval) > MINSERVOINTERVAL && !relayOn)
     {
       interval = abs(newInterval);
