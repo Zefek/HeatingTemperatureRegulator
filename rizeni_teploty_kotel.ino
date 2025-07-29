@@ -114,7 +114,7 @@ uint8_t temperatureDataToCompare[5];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
-MQTTConnectData mqttConnectData = { MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false, 0x0 }; 
+MQTTConnectData mqttConnectData = { MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", true, 0x0 }; 
 
 EspDrv drv(&Serial1);
 MQTTClient client(&drv, MQTTMessageReceive);
@@ -217,11 +217,11 @@ void MQTTConnect()
       if(client.Connect(mqttConnectData))
       {
         Serial.println("Subscribes");
-        client.Subscribe(TOPIC_THERMOSTAT);
-        client.Subscribe(TOPIC_MODE);
-        client.Subscribe(TOPIC_ZEROPOINT);
-        client.Subscribe(TOPIC_THERMOSTATSETCHANGED);
-        client.Subscribe(TOPIC_CURRENTDATETIEM);
+        client.Subscribe(TOPIC_THERMOSTAT, 1);
+        client.Subscribe(TOPIC_MODE, 1);
+        client.Subscribe(TOPIC_ZEROPOINT, 1);
+        client.Subscribe(TOPIC_THERMOSTATSETCHANGED, 1);
+        client.Subscribe(TOPIC_CURRENTDATETIEM, 1);
         mqttLastConnectionTry = currentMillis;
         mqttConnectionTimeout = 0;
       }
@@ -308,26 +308,45 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   {
     int day, month, year, hour, minute, second;
     int result = sscanf(mqttReceivedData, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);
-    if(result == 6
-      && year >= 2000 && year <= 2100
-      && month >= 1 && month <= 12
-      && day >= 1 && day <= 31
-      && hour >= 0 && hour < 24
-      && minute >= 0 && minute < 60
-      && second >= 0 && minute < 60
-      && (((month == 4 || month == 6 || month == 9 || month == 11) && day <= 30)
-        || ((month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12) && day <= 31)
-        || ((month == 2 && IsLeapYear(year) && day <= 29) || ( month == 2 && !IsLeapYear(year) && day <= 28 ))))
+    if(result != 6)
     {
-      Ds1302::DateTime dt;
-      dt.hour = hour;
-      dt.minute = minute;
-      dt.second = second;
-      dt.day = day;
-      dt.month = month;
-      dt.year = year;
-      rtc.setDateTime(&dt);
+      return;
     }
+    bool valid = true;
+
+    if (year < 2000 || year > 2100) valid = false;
+    if (month < 1 || month > 12)    valid = false;
+    if (day < 1 || day > 31)        valid = false;
+    if (hour < 0 || hour > 23)      valid = false;
+    if (minute < 0 || minute > 59)  valid = false;
+    if (second < 0 || second > 59)  valid = false;
+
+    // kontrola maximálního dne v měsíci
+    if (valid) 
+    {
+      const int maxDay[] = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+      int max = maxDay[month - 1];
+      if (month == 2 && IsLeapYear(year)) 
+      {
+        max = 29;
+      }
+      if (day > max)
+      { 
+        valid = false;
+      }
+    }
+    if (!valid) 
+    {
+      return;
+    }
+    Ds1302::DateTime dt;
+    dt.hour = hour;
+    dt.minute = minute;
+    dt.second = second;
+    dt.day = day;
+    dt.month = month;
+    dt.year = year;
+    rtc.setDateTime(&dt);
   }
   if(strcmp(topic, TOPIC_THERMOSTATSETCHANGED) == 0)
   {
@@ -648,8 +667,7 @@ void loop() {
   if(relayOn && currentMillis - relayOnMillis >= interval)
   {
     setRelayOff();
-    position += interval * direction;
-    position = min(max(position, 0), SERVOMAXRANGE);
+    position = min(max(0, (position + (currentMillis - relayOnMillis) * direction)), SERVOMAXRANGE);
     currentState.valvePosition = (uint8_t)round(position/(double)SERVO1PC);
     relayOffMillis = currentMillis;
   }
