@@ -76,6 +76,7 @@ void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
 18 - averageOutsideTemperature B1
 19 - averageOutsideTemperature B2
 20 - averageOutsideTemperature B3 (MSB)
+21 - heatermode
 */
 #pragma pack(push, 1)
 struct HeaterState {
@@ -94,6 +95,7 @@ struct HeaterState {
   uint8_t returnHeaterTemp;
   uint8_t boilerTemp;
   uint8_t outsideAvgTemp[4];
+  uint8_t mode;
 };
 
 struct FVEData
@@ -122,9 +124,9 @@ MQTTClient client(&drv, MQTTMessageReceive);
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
 
 enum HeatingMode : uint8_t {
-  MODE_OFF = 0,
-  MODE_AUTOMATIC = 1,
-  MODE_THERMOSTAT = 2
+  OFF = 0,
+  AUTOMATIC = 1,
+  THERMOSTAT = 2
 };
 
 uint32_t relayOnMillis = 0;
@@ -144,8 +146,7 @@ int sensor = 1;
 bool thermostat = false;
 uint8_t sensrId = 0;
 int lastCurrentTemp = 0;
-HeatingMode mode = MODE_AUTOMATIC;
-HeatingMode previousMode = MODE_AUTOMATIC;
+HeatingMode previousMode = AUTOMATIC;
 float equithermalCurveZeroPoint = 40;
 double insideTemperature = 22.5;
 unsigned char utf8Buffer[32];
@@ -182,7 +183,8 @@ void setup() {
   digitalWrite(MOREHEATINGRELAYPIN, HIGH);
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
-  lcd.SetMode(mode);
+  currentState.mode = AUTOMATIC; 
+  lcd.SetMode(currentState.mode);
   readCurrentHeatingTemperature();
   readInputTemperature();
   ComputeWasteGasTemperature();
@@ -227,8 +229,8 @@ void MQTTConnect()
       }
       else
       {
-        mode = MODE_AUTOMATIC;
-        lcd.SetMode(mode);
+        currentState.mode = AUTOMATIC;
+        lcd.SetMode(currentState.mode);
         equithermalCurveZeroPoint = 40;
         exponent = 0.76923;
         insideTemperature = 22.5;
@@ -281,17 +283,17 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   {
     if(strcmp(mqttReceivedData, "Off") == 0)
     {        
-      mode = MODE_OFF;
+      currentState.mode = OFF;
     }
     else if(strcmp(mqttReceivedData, "Automatic") == 0)
     {
-      mode = MODE_AUTOMATIC;
+      currentState.mode = AUTOMATIC;
     }
     else if (strcmp(mqttReceivedData, "Thermostat") == 0)
     {
-      mode = MODE_THERMOSTAT;
+      currentState.mode = THERMOSTAT;
     }
-    lcd.SetMode(mode);
+    lcd.SetMode(currentState.mode);
   }
   //Bod na nule v topné křivce
   if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
@@ -463,15 +465,15 @@ void setRelayOff()
 
 bool ShouldBeHeatingOff()
 {
-  if(mode == 0)
+  if(currentState.mode == OFF)
   {
     return true;
   }
-  if(mode == 1)
+  if(currentState.mode == AUTOMATIC)
   {
     return currentState.currentTemp < MININPUTTEMPERATURE;
   }
-  if(mode == 2)
+  if(currentState.mode == THERMOSTAT)
   {
     return !thermostat || currentState.currentTemp < MININPUTTEMPERATURE;
   }
@@ -480,15 +482,15 @@ bool ShouldBeHeatingOff()
 
 bool ShouldBeHeatingOn()
 {
-  if(mode == 0)
+  if(currentState.mode == OFF)
   {
     return false;
   }
-  if(mode == 1)
+  if(currentState.mode == AUTOMATIC)
   {
     return currentState.currentTemp > MININPUTTEMPERATURE + 1;
   }
-  if(mode == 2)
+  if(currentState.mode == THERMOSTAT)
   {
     return thermostat && currentState.currentTemp > MININPUTTEMPERATURE + 1;
   }
@@ -499,16 +501,16 @@ void checkHeating()
 {
   if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= 80)
   {
-    previousMode = mode;
-    mode = MODE_AUTOMATIC;
+    previousMode = currentState.mode;
+    currentState.mode = AUTOMATIC;
     shouldHeatingBeOnByTemperature = true;
-    lcd.SetMode(mode);
+    lcd.SetMode(currentState.mode);
   }
   if(shouldHeatingBeOnByTemperature && currentState.heaterTemp < 76)
   {
-    mode = previousMode;
+    currentState.mode = previousMode;
     shouldHeatingBeOnByTemperature = false;
-    lcd.SetMode(mode);
+    lcd.SetMode(currentState.mode);
   }
   if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
