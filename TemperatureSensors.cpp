@@ -27,6 +27,11 @@ void TemperatureSensors::Init()
   this->sensors->setResolution(currentHeating, 12);
 }
 
+void TemperatureSensors::RequestTemperatures()
+{
+  this->sensors->requestTemperatures();
+}
+
 void TemperatureSensors::GetAcumulator1Temperature(uint8_t* temperature)
 {
   GetTemperature(acumulatorFirst, temperature);
@@ -74,7 +79,6 @@ void TemperatureSensors::GetCurrentHeatingTemperature(uint8_t* temperature)
 
 void TemperatureSensors::GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature)
 {
-  sensors->requestTemperaturesByAddress(deviceAddress);
   float temp = sensors->getTempC(deviceAddress);
   if(temp == -127)
   {

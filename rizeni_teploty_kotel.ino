@@ -658,6 +658,7 @@ void loop() {
     readCurrentHeatingTemperature();
     readInputTemperature();
     ComputeWasteGasTemperature();
+    tempSensors.RequestTemperatures();
     temperatureReadMillis = currentMillis;
   }
   lcd.Print();

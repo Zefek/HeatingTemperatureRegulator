@@ -22,5 +22,6 @@ class TemperatureSensors
     void GetHeaterTemperature(uint8_t* temperature);
     void GetBoilerTemperature(uint8_t* temperature);
     void Init();
+    void RequestTemperatures();
 };
 #endif
