@@ -25,7 +25,7 @@ Relé ovládají:
 - směr ventilu (zvyšování nebo snižování topné vody),
 - čerpadlo topného okruhu.
 
-V případě ztráty komunikace s MQTT se nastavuje režim AUTOMATIC. U MQTT zpráv je důležité nastavit parametr Retention, aby v případě opětovného připojení regulátoru na MQTT mohlo dojít k nastavení původního režimu. 
+V případě ztráty komunikace s MQTT se nastavuje režim AUTOMATIC. U MQTT zpráv je důležité nastavit parametr retain, aby v případě opětovného připojení regulátoru na MQTT mohlo dojít k nastavení původního režimu. 
 
 ## Ekvitermní regulace
 Ekvitermní regulace upravuje teplotu topné vody podle venkovní teploty. Využívá výpočtovou křivku, která má dva nastavitelné parametry:
