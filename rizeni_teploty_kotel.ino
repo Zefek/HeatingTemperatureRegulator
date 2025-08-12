@@ -117,7 +117,7 @@ uint8_t temperatureDataToCompare[5];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
-MQTTConnectData mqttConnectData = { MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", true, 0x0 }; 
+MQTTConnectData mqttConnectData = { MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false, 0x0 }; 
 
 EspDrv drv(&Serial1);
 MQTTClient client(&drv, MQTTMessageReceive);
