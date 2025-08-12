@@ -24,6 +24,8 @@
 #define MINSERVOINTERVAL    1500    //Minimální interval pro aktivaci serva
 #define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
+#define FASTAVGALPHA        0.3
+#define SLOWAVGALPHA        0.035
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
@@ -151,7 +153,7 @@ double insideTemperature = 22.5;
 unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
 double averageWasteGasTemperature = 0;
-double lowAverageWasteGasTemperature = 0;
+double slowAverageWasteGasTemperature = 0;
 BelWattmeter belWattmeter;
 unsigned long mqttConnectionTimeout = 0;
 unsigned long mqttLastConnectionTry = 0;
@@ -441,15 +443,15 @@ void ComputeOutsideTemperatureAverage()
 
 void ComputeLowWasteGasTemperature()
 {
-  if(lowAverageWasteGasTemperature == 0)
+  if(slowAverageWasteGasTemperature == 0)
   {
-    lowAverageWasteGasTemperature = averageWasteGasTemperature;
+    slowAverageWasteGasTemperature = averageWasteGasTemperature;
   }
   else
   {
-    lowAverageWasteGasTemperature = 0.035 * averageWasteGasTemperature + (1 - 0.035) * lowAverageWasteGasTemperature;
+    slowAverageWasteGasTemperature = SLOWAVGALPHA * averageWasteGasTemperature + (1 - SLOWAVGALPHA) * slowAverageWasteGasTemperature;
   }
-  lcd.SetWasteGasTemperature((int)lowAverageWasteGasTemperature);
+  lcd.SetWasteGasTemperature((int)slowAverageWasteGasTemperature);
 }
 
 void ComputeWasteGasTemperature()
@@ -466,7 +468,7 @@ void ComputeWasteGasTemperature()
     }
     else
     {
-      averageWasteGasTemperature = 0.3 * T + (1 - 0.3) * averageWasteGasTemperature;
+      averageWasteGasTemperature = FASTAVGALPHA * T + (1 - FASTAVGALPHA) * averageWasteGasTemperature;
     }
   }
 }
@@ -618,7 +620,7 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp);
   tempSensors.GetHeaterTemperature(&currentState.heaterTemp);
   tempSensors.GetBoilerTemperature(&currentState.boilerTemp);
-  convertToHalfByte((int)lowAverageWasteGasTemperature, currentState.wasteGasTemp, 4);
+  convertToHalfByte((int)slowAverageWasteGasTemperature, currentState.wasteGasTemp, 4);
   uint8_t buffer[sizeof(HeaterState)];
   memcpy(buffer, &currentState, sizeof(HeaterState));
   client.Publish(TOPIC_HEATERSTATE, buffer, sizeof(HeaterState), true);
