@@ -191,7 +191,7 @@ void setup() {
   readCurrentHeatingTemperature();
   readInputTemperature();
   ComputeWasteGasTemperature();
-  ComputeLowWasteGasTemperature();
+  ComputeSlowWasteGasTemperature();
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   ComputeOutsideTemperatureAverage();
   lcd.Print();
@@ -441,7 +441,7 @@ void ComputeOutsideTemperatureAverage()
   }
 }
 
-void ComputeLowWasteGasTemperature()
+void ComputeSlowWasteGasTemperature()
 {
   if(slowAverageWasteGasTemperature == 0)
   {
@@ -678,7 +678,7 @@ void loop() {
   {
     readCurrentHeatingTemperature();
     readInputTemperature();
-    ComputeLowWasteGasTemperature();
+    ComputeSlowWasteGasTemperature();
     tempSensors.RequestTemperatures();
     temperatureReadMillis = currentMillis;
   }
