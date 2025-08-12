@@ -449,7 +449,7 @@ void ComputeLowWasteGasTemperature()
   {
     lowAverageWasteGasTemperature = 0.035 * averageWasteGasTemperature + (1 - 0.035) * lowAverageWasteGasTemperature;
   }
-  lcd.SetWasteGasTemperature((int)averageWasteGasTemperature);
+  lcd.SetWasteGasTemperature((int)lowAverageWasteGasTemperature);
 }
 
 void ComputeWasteGasTemperature()
