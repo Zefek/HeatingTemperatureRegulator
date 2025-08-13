@@ -24,7 +24,8 @@
 #define MINSERVOINTERVAL    1500    //Minimální interval pro aktivaci serva
 #define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
-#define AVGWASTETEMPVALUES  60.0      //Počet hodnot pro výpočet průměrné teploty v komínu (počet sekund)
+#define FASTAVGALPHA        0.3
+#define SLOWAVGALPHA        0.035
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
@@ -116,7 +117,7 @@ uint8_t temperatureDataToCompare[5];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
-MQTTConnectData mqttConnectData = { MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", true, 0x0 }; 
+MQTTConnectData mqttConnectData = { MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false, 0x0 }; 
 
 EspDrv drv(&Serial1);
 MQTTClient client(&drv, MQTTMessageReceive);
@@ -152,6 +153,7 @@ double insideTemperature = 22.5;
 unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
 double averageWasteGasTemperature = 0;
+double slowAverageWasteGasTemperature = 0;
 BelWattmeter belWattmeter;
 unsigned long mqttConnectionTimeout = 0;
 unsigned long mqttLastConnectionTry = 0;
@@ -160,6 +162,7 @@ bool shouldHeatingBeOnByTemperature = false;
 bool outsideTemperatureWasSet = false;
 bool fveOnlineSent = false;
 bool fveOfflineSent = false;
+unsigned long fastReadMillis = 0;
 
 void setup() {
   Serial.begin(57600);
@@ -188,6 +191,7 @@ void setup() {
   readCurrentHeatingTemperature();
   readInputTemperature();
   ComputeWasteGasTemperature();
+  ComputeSlowWasteGasTemperature();
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   ComputeOutsideTemperatureAverage();
   lcd.Print();
@@ -437,6 +441,19 @@ void ComputeOutsideTemperatureAverage()
   }
 }
 
+void ComputeSlowWasteGasTemperature()
+{
+  if(slowAverageWasteGasTemperature == 0)
+  {
+    slowAverageWasteGasTemperature = averageWasteGasTemperature;
+  }
+  else
+  {
+    slowAverageWasteGasTemperature = SLOWAVGALPHA * averageWasteGasTemperature + (1 - SLOWAVGALPHA) * slowAverageWasteGasTemperature;
+  }
+  lcd.SetWasteGasTemperature((int)slowAverageWasteGasTemperature);
+}
+
 void ComputeWasteGasTemperature()
 {
   uint32_t gasTempValue = analogRead(A0);
@@ -451,9 +468,8 @@ void ComputeWasteGasTemperature()
     }
     else
     {
-      averageWasteGasTemperature = ((1 / AVGWASTETEMPVALUES) * T) + (((AVGWASTETEMPVALUES - 1) / AVGWASTETEMPVALUES) * averageWasteGasTemperature);
+      averageWasteGasTemperature = FASTAVGALPHA * T + (1 - FASTAVGALPHA) * averageWasteGasTemperature;
     }
-    lcd.SetWasteGasTemperature((int)averageWasteGasTemperature);
   }
 }
 
@@ -604,7 +620,7 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp);
   tempSensors.GetHeaterTemperature(&currentState.heaterTemp);
   tempSensors.GetBoilerTemperature(&currentState.boilerTemp);
-  convertToHalfByte((int)averageWasteGasTemperature, currentState.wasteGasTemp, 4);
+  convertToHalfByte((int)slowAverageWasteGasTemperature, currentState.wasteGasTemp, 4);
   uint8_t buffer[sizeof(HeaterState)];
   memcpy(buffer, &currentState, sizeof(HeaterState));
   client.Publish(TOPIC_HEATERSTATE, buffer, sizeof(HeaterState), true);
@@ -653,11 +669,16 @@ void loop() {
   }
   outsideTemperatureSensor.CheckTemperature();
   belWattmeter.Loop();
+  if(currentMillis - fastReadMillis > 50)
+  {
+    ComputeWasteGasTemperature();
+    fastReadMillis = currentMillis;
+  }
   if(currentMillis - temperatureReadMillis > 1000)
   {
     readCurrentHeatingTemperature();
     readInputTemperature();
-    ComputeWasteGasTemperature();
+    ComputeSlowWasteGasTemperature();
     tempSensors.RequestTemperatures();
     temperatureReadMillis = currentMillis;
   }
