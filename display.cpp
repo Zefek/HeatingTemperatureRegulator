@@ -152,13 +152,27 @@
     void Display::SetMode(uint8_t mode)
     {
       this->mode = mode;
+      PrintMode(mode, false);
+    }
+
+    void Display::PrintMode(uint8_t mode, bool blink)
+    {
       lcd->setCursor(5, 0);
       if(mode == 0)
         lcd->print("O");
       if(mode == 1)
         lcd->print("A");
       if(mode == 2)
-        lcd->print("T");
+      {
+        if(blink)
+        {
+          lcd->print(" ");
+        }
+        else
+        {
+          lcd->print("T");
+        }
+      }
     }
 
     void Display::SetHeating(bool heatingOn)
@@ -176,7 +190,7 @@
 
     void Display::Blink()
     {
-      if(blinkCount % 2 == 0)
+      if(!shouldBlink)
       {
         lcd->setCursor(13, 0);
         lcd->print(":");
@@ -198,9 +212,13 @@
       }
       if(!outsideTemperatureWasSet)
       {
-        printOutTemperature(blinkCount % 2 != 0);
+        printOutTemperature(shouldBlink);
       }
-      blinkCount++;
+      if(mode == 2 && !thermostat)
+      {
+        PrintMode(mode, shouldBlink);
+      }
+      shouldBlink = !shouldBlink;
     }
 
     void Display::Print()
@@ -211,4 +229,10 @@
         Blink();
         lastPrint = millis();
       }
+    }
+
+    void Display::SetThermostat(bool thermostat)
+    {
+      this->thermostat = thermostat;
+      PrintMode(mode, false);
     }
