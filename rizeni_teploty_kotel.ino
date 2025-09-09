@@ -1,7 +1,7 @@
 #include <Ds1302.h>
 #include <EEPROM.h>
 #include "display.h"
-#include "TX07K-TXC.h"
+#include <TX07K-TXC.h>
 #include "config.h"
 #include <avr/wdt.h>
 #include "TemperatureSensors.h"
@@ -281,6 +281,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     {
       thermostat = true;
     }
+    lcd.SetThermostat(thermostat);
   }
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
   if(strcmp(topic, TOPIC_MODE) == 0)

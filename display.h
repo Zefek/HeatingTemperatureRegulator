@@ -33,16 +33,18 @@ class Display
     uint8_t minutes = 0;
     Ds1302* rtc;
     unsigned long lastPrint;
-    unsigned long blinkCount = 0;
+    bool shouldBlink = false;
     bool heatingOn = false;
     uint8_t mode = 0;
     int wasteGasTemperature = 0;
     bool outsideTemperatureWasSet = false;
+    bool thermostat = false;
 
     void print2digits(uint8_t number);
     void printTime();
     void printOutTemperature(bool blink);
     void Blink();
+    void PrintMode(uint8_t mode, bool blink);
 
   public:
     Display(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
@@ -56,4 +58,5 @@ class Display
     void SetHeating(bool heatingOn);
     void SetMode(uint8_t mode);
     void SetWasteGasTemperature(int wasteGasTemperature);
+    void SetThermostat(bool thermostat);
 };
