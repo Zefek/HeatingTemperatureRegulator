@@ -39,6 +39,8 @@ class Display
     int wasteGasTemperature = 0;
     bool outsideTemperatureWasSet = false;
     bool thermostat = false;
+    bool intializing = false;
+    bool forcePrint = false;
 
     void print2digits(uint8_t number);
     void printTime();
@@ -49,7 +51,6 @@ class Display
   public:
     Display(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows);
     void Init(Ds1302* rtc);
-    void BackLight();
     void SetRequiredTemperature(uint8_t requiredTempareture);
     void Print();
     void SetCurrentHeatingTemperature(uint8_t currentHeatingTemperature);
@@ -59,4 +60,5 @@ class Display
     void SetMode(uint8_t mode);
     void SetWasteGasTemperature(int wasteGasTemperature);
     void SetThermostat(bool thermostat);
+    void EndInitialize();
 };
