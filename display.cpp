@@ -68,7 +68,7 @@
 
     void Display::Init(Ds1302* rtc)
     {
-      intializing = true;
+      initializing= true;
       lcd->init();
       lcd->backlight();
       lcd->createChar(0, onChar);
@@ -84,7 +84,7 @@
       if(this->requiredTemperature != requiredTemperature || forcePrint)
       {
         this->requiredTemperature = requiredTemperature;
-        if(!intializing)
+        if(!initializing)
         {
           lcd->setCursor(0, 0);
           lcd->print("   ");
@@ -100,7 +100,7 @@
       if(this->outTemperature != outTemperature || forcePrint)
       {
         this->outTemperature = outTemperature;
-        if(!intializing)
+        if(!initializing)
         {
           printOutTemperature(false);
         }
@@ -113,7 +113,7 @@
       if(this->wasteGasTemperature != wasteGasTemperature || forcePrint)
       {
         this->wasteGasTemperature = wasteGasTemperature;
-        if(!intializing)
+        if(!initializing)
         {
           lcd->setCursor(4, 1);
           lcd->print("    ");
@@ -137,7 +137,7 @@
       if(this->inputTemperature != inputTemperature || forcePrint)
       {
         this->inputTemperature = inputTemperature;
-        if(!intializing)
+        if(!initializing)
         {
           lcd->setCursor(7, 0);
           lcd->print("   ");
@@ -153,7 +153,7 @@
       if(this->currentHeatingTemperature != currentHeatingTemperature || forcePrint)
       {
         this->currentHeatingTemperature = currentHeatingTemperature;
-        if(!intializing)
+        if(!initializing)
         {
           lcd->setCursor(0, 1);
           lcd->print("   ");
@@ -167,7 +167,7 @@
     void Display::SetMode(uint8_t mode)
     {
       this->mode = mode;
-      if(!intializing)
+      if(!initializing)
       {
         PrintMode(mode, false);
       }
@@ -198,7 +198,7 @@
       if(this->heatingOn != heatingOn || forcePrint)
       {
         this->heatingOn = heatingOn;
-        if(!intializing)
+        if(!initializing)
         {
           if(!heatingOn)
           {
@@ -255,7 +255,7 @@
     void Display::SetThermostat(bool thermostat)
     {
       this->thermostat = thermostat;
-      if(!intializing)
+      if(!initializing)
       {
         PrintMode(mode, false);
       }
@@ -263,7 +263,7 @@
 
     void Display::EndInitialize()
     {
-      intializing = false;
+      initializing= false;
       forcePrint = true;
       lcd->clear();
       SetRequiredTemperature(this->requiredTemperature);

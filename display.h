@@ -39,7 +39,7 @@ class Display
     int wasteGasTemperature = 0;
     bool outsideTemperatureWasSet = false;
     bool thermostat = false;
-    bool intializing = false;
+    bool initializing = false;
     bool forcePrint = false;
 
     void print2digits(uint8_t number);
