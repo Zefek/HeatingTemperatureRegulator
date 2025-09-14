@@ -705,11 +705,7 @@ void loop() {
   if(relayOn && currentMillis - relayOnMillis >= interval)
   {
     setRelayOff();
-    position = min(max(0, (position + (currentMillis - relayOnMillis) * direction)), SERVOMAXRANGE);
-    if(currentState.heatingActive == 0)
-    {
-      position = 0;
-    }
+    position = min(max(0, (position + (long)(currentMillis - relayOnMillis) * direction)), SERVOMAXRANGE);
     currentState.valvePosition = (uint8_t)round(position/(double)SERVO1PC);
     relayOffMillis = currentMillis;
   }
