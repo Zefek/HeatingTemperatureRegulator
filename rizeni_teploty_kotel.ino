@@ -163,6 +163,7 @@ bool outsideTemperatureWasSet = false;
 bool fveOnlineSent = false;
 bool fveOfflineSent = false;
 unsigned long fastReadMillis = 0;
+bool resetServo = false;
 
 void setup() {
   Serial.begin(57600);
@@ -170,11 +171,11 @@ void setup() {
   Serial1.begin(57600);
   Serial2.begin(9600);
   sensrId = EEPROM.read(0);
-  Serial.print("Sensor Id: ");
-  Serial.println(sensrId);
   rtc.init();
   lcd.Init(&rtc);
-  lcd.BackLight();
+  Serial.print("Sensor Id: ");
+  Serial.println(sensrId);
+  
   outsideTemperatureSensor.Init();
   tempSensors.Init();
   drv.Init(64);
@@ -188,14 +189,16 @@ void setup() {
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
   currentState.mode = AUTOMATIC; 
   lcd.SetMode(currentState.mode);
+  computeRequiredTemperature();
   readCurrentHeatingTemperature();
   readInputTemperature();
   ComputeWasteGasTemperature();
   ComputeSlowWasteGasTemperature();
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   ComputeOutsideTemperatureAverage();
-  lcd.Print();
+  lcd.EndInitialize();
   currentState.outsideAvgTemp[0] = 0xFF;
+  resetServo = true;
   //wdt_enable(WDTO_8S);
 }
 
@@ -533,6 +536,17 @@ bool ShouldBeHeatingOn()
   return false;
 }
 
+void HeatingOff()
+{
+  digitalWrite(LESSHEATINGRELAYPIN, LOW);
+  digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
+  interval = SERVOMAXRANGE;
+  direction = -1;
+  relayOn = true;
+  relayOnMillis = currentMillis;
+  currentState.heatingActive = 0;
+}
+
 void checkHeating()
 {
   if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= 80)
@@ -550,13 +564,7 @@ void checkHeating()
   }
   if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
-    digitalWrite(LESSHEATINGRELAYPIN, LOW);
-    digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
-    interval = SERVOMAXRANGE;
-    direction = -1;
-    relayOn = true;
-    relayOnMillis = currentMillis;
-    currentState.heatingActive = 0;
+    HeatingOff();
   }
   if(currentState.heatingActive == 0 && ShouldBeHeatingOn())
   {
@@ -668,6 +676,11 @@ void loop() {
   {
     MQTTConnect();
   }
+  if(resetServo)
+  {
+    HeatingOff();
+    resetServo = false;
+  }
   outsideTemperatureSensor.CheckTemperature();
   belWattmeter.Loop();
   if(currentMillis - fastReadMillis > 50)
@@ -692,7 +705,7 @@ void loop() {
   if(relayOn && currentMillis - relayOnMillis >= interval)
   {
     setRelayOff();
-    position = min(max(0, (position + (currentMillis - relayOnMillis) * direction)), SERVOMAXRANGE);
+    position = min(max(0, (position + (long)(currentMillis - relayOnMillis) * direction)), SERVOMAXRANGE);
     currentState.valvePosition = (uint8_t)round(position/(double)SERVO1PC);
     relayOffMillis = currentMillis;
   }
