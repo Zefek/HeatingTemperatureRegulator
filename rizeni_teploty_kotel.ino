@@ -19,9 +19,9 @@
 #define ONEWIREBUSPIN       7
 #define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
 #define SERVO1PC            700 //Jedno procento z intervalu serva
-#define PCONST              1500  //P konstanta pro PID
-#define DCONST              2000000 //D konstanta pro PID
-#define MINSERVOINTERVAL    1500    //Minimální interval pro aktivaci serva
+#define PCONST              700  //P konstanta pro PID
+#define DCONST              28000000 //D konstanta pro PID
+#define MINSERVOINTERVAL    700    //Minimální interval pro aktivaci serva
 #define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
 #define FASTAVGALPHA        0.3
@@ -164,6 +164,8 @@ bool fveOnlineSent = false;
 bool fveOfflineSent = false;
 unsigned long fastReadMillis = 0;
 bool resetServo = false;
+double dFiltered = 0;
+bool firstRun = false;
 
 void setup() {
   Serial.begin(57600);
@@ -549,14 +551,14 @@ void HeatingOff()
 
 void checkHeating()
 {
-  if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= 80)
+  if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= 82)
   {
     previousMode = currentState.mode;
     currentState.mode = AUTOMATIC;
     shouldHeatingBeOnByTemperature = true;
     lcd.SetMode(currentState.mode);
   }
-  if(shouldHeatingBeOnByTemperature && currentState.heaterTemp < 76)
+  if(shouldHeatingBeOnByTemperature && currentState.heaterTemp < 82)
   {
     currentState.mode = previousMode;
     shouldHeatingBeOnByTemperature = false;
@@ -568,6 +570,7 @@ void checkHeating()
   }
   if(currentState.heatingActive == 0 && ShouldBeHeatingOn())
   {
+    firstRun = true;
     currentState.heatingActive = 1;
     digitalWrite(HEATINGPUMPRELAYPIN, LOW);
   }
@@ -712,11 +715,22 @@ void loop() {
  
   if(currentState.heatingActive == 1 && currentMillis - lastRegulatorMeasurement  > TEMPCHECKINTERVAL)
   {
-    int diff = (int)currentState.setTemp - (int)currentState.currentTemp;
-    double change = ((int)lastCurrentTemp - (int)currentState.currentTemp) / ((double)(currentMillis - lastRegulatorMeasurement));
-    long newInterval = constrain((diff * PCONST) + (change * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE);
+    int diff = constrain((int)currentState.setTemp - (int)currentState.currentTemp, -3, 3);
+    double time = (double)(currentMillis - lastRegulatorMeasurement);
+    double change = ((int)lastCurrentTemp - (int)currentState.currentTemp) / time;
+    double alpha = time / (60000 + time);
+    if(firstRun)
+    {
+      dFiltered = change;
+      firstRun = false;
+    }
+    else
+    {
+      dFiltered = dFiltered  + alpha * (change - dFiltered);
+    }
+    long newInterval = constrain((diff * PCONST) + (dFiltered * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE);
     lastCurrentTemp = currentState.currentTemp;
-    if(abs(newInterval) > MINSERVOINTERVAL && !relayOn)
+    if(abs(newInterval) >= MINSERVOINTERVAL && !relayOn)
     {
       interval = abs(newInterval);
       setRelay(newInterval < 0? - 1 : 1);
