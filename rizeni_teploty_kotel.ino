@@ -20,12 +20,13 @@
 #define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
 #define SERVO1PC            700 //Jedno procento z intervalu serva
 #define PCONST              700  //P konstanta pro PID
-#define DCONST              28000000 //D konstanta pro PID
+#define DCONST              42000000 //D konstanta pro PID
 #define MINSERVOINTERVAL    700    //Minimální interval pro aktivaci serva
 #define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
 #define FASTAVGALPHA        0.3
 #define SLOWAVGALPHA        0.035
+#define OVERHEATINGTEMPERATURE 60
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
@@ -166,6 +167,8 @@ unsigned long fastReadMillis = 0;
 bool resetServo = false;
 double dFiltered = 0;
 bool firstRun = false;
+bool overheating = false;
+
 
 void setup() {
   Serial.begin(57600);
@@ -395,6 +398,10 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
 
 void computeRequiredTemperature()
 {
+  if(overheating)
+  {
+    return;
+  }
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
   float zeroTemp = equithermalCurveZeroPoint;
@@ -506,6 +513,10 @@ void setRelayOff()
 
 bool ShouldBeHeatingOff()
 {
+  if(overheating)
+  {
+    return false;
+  }
   if(currentState.mode == OFF)
   {
     return true;
@@ -523,6 +534,10 @@ bool ShouldBeHeatingOff()
 
 bool ShouldBeHeatingOn()
 {
+  if(overheating)
+  {
+    return true;
+  }
   if(currentState.mode == OFF)
   {
     return false;
@@ -672,6 +687,21 @@ void sendFVEToHomeAssistant()
   belWattmeter.Reset();
 }
 
+void SetHeatingTemperaturyByOverheating()
+{
+  if(currentState.currentTemp > 97 && !overheating)
+  {
+    overheating = true;
+    currentState.setTemp = OVERHEATINGTEMPERATURE;
+    lcd.SetRequiredTemperature(currentState.setTemp);
+  }
+  if(currentState.currentTemp < 95 && overheating)
+  {
+    overheating = false;
+    computeRequiredTemperature();
+  }
+}
+
 void loop() {
   wdt_reset();
   currentMillis = millis();
@@ -699,6 +729,7 @@ void loop() {
     tempSensors.RequestTemperatures();
     temperatureReadMillis = currentMillis;
   }
+  SetHeatingTemperaturyByOverheating();
   lcd.Print();
   sendToHomeAssistant();
   if(!relayOn)
