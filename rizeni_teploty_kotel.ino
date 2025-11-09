@@ -687,7 +687,7 @@ void sendFVEToHomeAssistant()
   belWattmeter.Reset();
 }
 
-void SetHeatingTemperaturyByOverheating()
+void SetHeatingTemperatureByOverheating()
 {
   if(currentState.currentTemp > 97 && !overheating)
   {
@@ -729,7 +729,7 @@ void loop() {
     tempSensors.RequestTemperatures();
     temperatureReadMillis = currentMillis;
   }
-  SetHeatingTemperaturyByOverheating();
+  SetHeatingTemperatureByOverheating();
   lcd.Print();
   sendToHomeAssistant();
   if(!relayOn)
