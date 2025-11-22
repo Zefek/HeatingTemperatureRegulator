@@ -706,7 +706,7 @@ long GetIntervalCorrection(long interval)
 {
   if(currentState.inputTemp < currentState.setTemp && currentState.heaterTemp >= 82)
   {
-    long max = SERVO1PC * 66;
+    long max = SERVO1PC * 66L;
     if(position >= max)
     {
       return max - position;
