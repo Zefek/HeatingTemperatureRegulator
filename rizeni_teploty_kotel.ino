@@ -385,11 +385,11 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   if(channel == 1 && sensrId == sensorId)
   {
     outsideTemperature = temperature;
-    if (memcmp(rawData, temperatureDataToCompare, sizeof(rawData)) != 0)
+    if (memcmp(rawData, temperatureDataToCompare, 5) != 0)
     {
       convert_to_utf8(rawData, 5, utf8Buffer);
       client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
-      memcpy(temperatureDataToCompare, rawData, sizeof(rawData));
+      memcpy(temperatureDataToCompare, rawData, 5);
     }
     outsideTemperatureWasSet = true;
     lcd.SetOutTemperature(temperature);
@@ -689,17 +689,30 @@ void sendFVEToHomeAssistant()
 
 void SetHeatingTemperatureByOverheating()
 {
-  if(currentState.currentTemp > 97 && !overheating)
+  if(currentState.heaterTemp > 97 && !overheating)
   {
     overheating = true;
     currentState.setTemp = OVERHEATINGTEMPERATURE;
     lcd.SetRequiredTemperature(currentState.setTemp);
   }
-  if(currentState.currentTemp < 95 && overheating)
+  if(currentState.heaterTemp < 95 && overheating)
   {
     overheating = false;
     computeRequiredTemperature();
   }
+}
+
+long GetIntervalCorrection(long interval)
+{
+  if(currentState.inputTemp < currentState.setTemp && currentState.heaterTemp >= 82)
+  {
+    long max = SERVO1PC * 66L;
+    if(position >= max)
+    {
+      return max - position;
+    }
+  }
+  return interval;
 }
 
 void loop() {
@@ -759,7 +772,7 @@ void loop() {
     {
       dFiltered = dFiltered  + alpha * (change - dFiltered);
     }
-    long newInterval = constrain((diff * PCONST) + (dFiltered * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE);
+    long newInterval = GetIntervalCorrection(constrain((diff * PCONST) + (dFiltered * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE));
     lastCurrentTemp = currentState.currentTemp;
     if(abs(newInterval) >= MINSERVOINTERVAL && !relayOn)
     {
