@@ -143,13 +143,12 @@ bool relayOn = false;
 int8_t direction = 0;
 double outsideTemperature = 14;
 double outsideTemperatureAverage = 0;
-int outsideTemperatureAverageCount = 0;
 int sensor = 1;
 bool thermostat = false;
 uint8_t sensrId = 0;
 int lastCurrentTemp = 0;
 HeatingMode previousMode = AUTOMATIC;
-float equithermalCurveZeroPoint = 40;
+double equithermalCurveZeroPoint = 40;
 double insideTemperature = 22.5;
 unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
@@ -404,13 +403,12 @@ void computeRequiredTemperature()
   }
   //nastavená teplota topné vody pro venkovní teplotu 0°C
   //touto proměnnou se nastavuje sklon topné křivky.
-  float zeroTemp = equithermalCurveZeroPoint;
   double outsideTemp = outsideTemperatureAverage;
   if(!outsideTemperatureWasSet)
   {
     outsideTemp = outsideTemperature;
   }
-  int newValue = (int)round(insideTemperature + (zeroTemp - insideTemperature) * pow(max(0, (outsideTemperatureAverage - insideTemperature) / (-insideTemperature)), exponent));
+  int newValue = (int)round(insideTemperature + (equithermalCurveZeroPoint - insideTemperature) * pow(max(0, (outsideTemp - insideTemperature) / (-insideTemperature)), exponent));
 
   if(newValue < 10 || newValue > 80)
   {
@@ -430,22 +428,8 @@ void ComputeOutsideTemperatureAverage()
     return;
   }
   double oldAverage = outsideTemperatureAverage;
-  if(outsideTemperatureAverageCount < AVGOUTTEMPVALUES)
-  {
-    if(outsideTemperatureAverageCount == 0)
-    {
-      outsideTemperatureAverage = outsideTemperature;
-    }
-    else
-    {
-      outsideTemperatureAverage = ((outsideTemperatureAverage * outsideTemperatureAverageCount) + outsideTemperature) / (outsideTemperatureAverageCount + 1);
-    }
-    outsideTemperatureAverageCount++;
-  }
-  else
-  {
-    outsideTemperatureAverage = ((1 / (double)outsideTemperatureAverageCount) * outsideTemperature) + (((outsideTemperatureAverageCount - 1) / (double)outsideTemperatureAverageCount) * outsideTemperatureAverage);
-  }
+  double alpha = 1.0 / 180.0;
+  outsideTemperatureAverage = constrain(alpha * outsideTemperature + (1 - alpha) * outsideTemperatureAverage, -50, 50);
   if(oldAverage != outsideTemperatureAverage)
   {
     int T = (int)(outsideTemperatureAverage * 10);
