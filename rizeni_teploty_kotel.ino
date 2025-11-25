@@ -20,13 +20,14 @@
 #define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
 #define SERVO1PC            700 //Jedno procento z intervalu serva
 #define PCONST              700  //P konstanta pro PID
-#define DCONST              42000000 //D konstanta pro PID
+#define DCONST              35000000 //D konstanta pro PID
 #define MINSERVOINTERVAL    700    //Minimální interval pro aktivaci serva
 #define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
 #define FASTAVGALPHA        0.3
 #define SLOWAVGALPHA        0.035
 #define OVERHEATINGTEMPERATURE 60
+#define MAXTEMPDIFFERENCE 10
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
@@ -390,6 +391,10 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
       client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
       memcpy(temperatureDataToCompare, rawData, 5);
     }
+    if(!outsideTemperatureWasSet)
+    {
+      outsideTemperatureAverage = temperature;
+    }
     outsideTemperatureWasSet = true;
     lcd.SetOutTemperature(temperature);
   }
@@ -686,19 +691,6 @@ void SetHeatingTemperatureByOverheating()
   }
 }
 
-long GetIntervalCorrection(long interval)
-{
-  if(currentState.inputTemp < currentState.setTemp && currentState.heaterTemp >= 82)
-  {
-    long max = SERVO1PC * 66L;
-    if(position >= max)
-    {
-      return max - position;
-    }
-  }
-  return interval;
-}
-
 void loop() {
   wdt_reset();
   currentMillis = millis();
@@ -743,7 +735,8 @@ void loop() {
  
   if(currentState.heatingActive == 1 && currentMillis - lastRegulatorMeasurement  > TEMPCHECKINTERVAL)
   {
-    int diff = constrain((int)currentState.setTemp - (int)currentState.currentTemp, -3, 3);
+    int maxTemp = min((int)currentState.returnTemp + MAXTEMPDIFFERENCE, (int)currentState.setTemp);
+    int diff = constrain((maxTemp - (int)currentState.currentTemp), -3, 3);
     double time = (double)(currentMillis - lastRegulatorMeasurement);
     double change = ((int)lastCurrentTemp - (int)currentState.currentTemp) / time;
     double alpha = time / (60000 + time);
@@ -756,7 +749,7 @@ void loop() {
     {
       dFiltered = dFiltered  + alpha * (change - dFiltered);
     }
-    long newInterval = GetIntervalCorrection(constrain((diff * PCONST) + (dFiltered * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE));
+    long newInterval = constrain((diff * PCONST) + (dFiltered * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE);
     lastCurrentTemp = currentState.currentTemp;
     if(abs(newInterval) >= MINSERVOINTERVAL && !relayOn)
     {
