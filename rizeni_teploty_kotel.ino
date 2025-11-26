@@ -19,15 +19,12 @@
 #define ONEWIREBUSPIN       7
 #define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
 #define SERVO1PC            700 //Jedno procento z intervalu serva
-#define PCONST              700  //P konstanta pro PID
-#define DCONST              35000000 //D konstanta pro PID
 #define MINSERVOINTERVAL    700    //Minimální interval pro aktivaci serva
 #define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
 #define FASTAVGALPHA        0.3
 #define SLOWAVGALPHA        0.035
 #define OVERHEATINGTEMPERATURE 60
-#define MAXTEMPDIFFERENCE 10
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
