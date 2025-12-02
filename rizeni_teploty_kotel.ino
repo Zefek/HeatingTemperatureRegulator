@@ -146,8 +146,6 @@ bool thermostat = false;
 uint8_t sensrId = 0;
 int lastCurrentTemp = 0;
 HeatingMode previousMode = AUTOMATIC;
-double equithermalCurveZeroPoint = 40;
-double insideTemperature = 22.5;
 unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
 double averageWasteGasTemperature = 0;
@@ -155,7 +153,6 @@ double slowAverageWasteGasTemperature = 0;
 BelWattmeter belWattmeter;
 unsigned long mqttConnectionTimeout = 0;
 unsigned long mqttLastConnectionTry = 0;
-double exponent = 0.76923;
 bool shouldHeatingBeOnByTemperature = false;
 bool outsideTemperatureWasSet = false;
 bool fveOnlineSent = false;
@@ -165,7 +162,8 @@ bool resetServo = false;
 double dFiltered = 0;
 bool firstRun = false;
 bool overheating = false;
-
+uint8_t averageSetTemperature = 0;
+bool emaWasSet = false;
 
 void setup() {
   Serial.begin(57600);
@@ -313,7 +311,6 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
     equithermalCurveZeroPoint = atof(token);
     token = strtok(NULL, ";");
     exponent = atof(token);
-    computeRequiredTemperature();
   }
   //Nastavení data a času
   if(strcmp(topic, TOPIC_CURRENTDATETIEM) == 0)
@@ -399,27 +396,31 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
 
 void computeRequiredTemperature()
 {
-  if(overheating)
-  {
-    return;
-  }
-  //nastavená teplota topné vody pro venkovní teplotu 0°C
-  //touto proměnnou se nastavuje sklon topné křivky.
+  double alpha = 0.1818;
   double outsideTemp = outsideTemperatureAverage;
   if(!outsideTemperatureWasSet)
   {
     outsideTemp = outsideTemperature;
   }
-  int newValue = (int)round(insideTemperature + (equithermalCurveZeroPoint - insideTemperature) * pow(max(0, (outsideTemp - insideTemperature) / (-insideTemperature)), exponent));
-
-  if(newValue < 10 || newValue > 80)
+  double newValue = insideTemperature + (equithermalCurveZeroPoint - insideTemperature) * pow(max(0, (outsideTemp - insideTemperature) / (-insideTemperature)), exponent);
+  int valueToSet = (int)round(newValue);
+  if(outsideTemperatureWasSet)
   {
-    return;
+    if(!emaWasSet)
+    {
+      averageSetTemperature = newValue;
+      emaWasSet = true;
+    }
+    else
+    {
+      averageSetTemperature = constrain(alpha * newValue + (1 - alpha) * currentState.setTemp, 10, 80);
+      valueToSet = (int)round(averageSetTemperature);
+    }
   }
-  if(newValue != currentState.setTemp)
+  if(!overheating)
   {
-    currentState.setTemp = newValue;
-    lcd.SetRequiredTemperature(currentState.setTemp);
+    lcd.SetRequiredTemperature(valueToSet);
+    currentState.setTemp = valueToSet;
   }
 }
 
@@ -436,7 +437,6 @@ void ComputeOutsideTemperatureAverage()
   {
     int T = (int)(outsideTemperatureAverage * 10);
     convertToHalfByte(T, currentState.outsideAvgTemp, 4);
-    computeRequiredTemperature();
   }
 }
 
@@ -612,6 +612,7 @@ void sendToHomeAssistant()
     if(sendIndex == 0)
     {
       ComputeOutsideTemperatureAverage();
+      computeRequiredTemperature();
       sendHeaterToHomeAssistant();
       sendIndex = 1;
     }
@@ -684,7 +685,6 @@ void SetHeatingTemperatureByOverheating()
   if(currentState.heaterTemp < 95 && overheating)
   {
     overheating = false;
-    computeRequiredTemperature();
   }
 }
 
