@@ -162,7 +162,7 @@ bool resetServo = false;
 double dFiltered = 0;
 bool firstRun = false;
 bool overheating = false;
-uint8_t averageSetTemperature = 0;
+double averageSetTemperature = 0;
 bool emaWasSet = false;
 
 void setup() {
