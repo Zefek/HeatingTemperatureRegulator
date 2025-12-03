@@ -289,6 +289,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
   if(strcmp(topic, TOPIC_MODE) == 0)
   {
+    shouldHeatingBeOnByTemperature = false;
     if(strcmp(mqttReceivedData, "Off") == 0)
     {        
       currentState.mode = OFF;
@@ -413,7 +414,7 @@ void computeRequiredTemperature()
     }
     else
     {
-      averageSetTemperature = constrain(alpha * newValue + (1 - alpha) * currentState.setTemp, 10, 80);
+      averageSetTemperature = constrain(alpha * newValue + (1 - alpha) * averageSetTemperature, 10, 80);
       valueToSet = (int)round(averageSetTemperature);
     }
   }
