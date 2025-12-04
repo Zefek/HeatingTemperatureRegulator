@@ -41,7 +41,7 @@ jobs:
       - name: Set configs
         run: |
           cp config_default.h config.h
-          cp sensorconfig_default.h sensorconfig.h
+          cp sensorsconfig_default.h sensorsconfig.h
 
       - name: Compile Arduino project
         run: |
