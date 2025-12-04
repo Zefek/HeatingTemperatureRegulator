@@ -38,6 +38,11 @@ jobs:
           git clone https://github.com/Zefek/TX07K-TXC.git ~/Arduino/libraries/TX07K-TXC
           git clone https://github.com/Zefek/MQTTESP8266.git ~/Arduino/libraries/MQTTESP8266
 
+      - name: Set configs
+        run: |
+          cp config_default.h config.h
+          cp sensorconfig_default.h sensorconfig.h
+
       - name: Compile Arduino project
         run: |
           arduino-cli compile --fqbn arduino:avr:mega ./
