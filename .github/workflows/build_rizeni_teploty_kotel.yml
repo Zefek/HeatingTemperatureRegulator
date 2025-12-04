@@ -1,0 +1,32 @@
+name: Build Arduino
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Arduino CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          sudo mv bin/arduino-cli /usr/local/bin/
+
+      - name: Initialize Arduino CLI
+        run: |
+          arduino-cli config init
+          arduino-cli core update-index
+
+      - name: Install required board core
+        run: arduino-cli core install arduino:avr  # např. pro Arduino Uno
+
+      - name: Compile Arduino project
+        run: |
+          arduino-cli compile --fqbn arduino:avr:mega ./rizeni_teploty_kotel.ino
