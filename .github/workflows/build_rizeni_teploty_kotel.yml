@@ -32,6 +32,7 @@ jobs:
           arduino-cli lib install "DS1302"
           arduino-cli lib install "LiquidCrystal_I2C"
           arduino-cli lib install "DallasTemperature"
+          arduino-cli lib install "OneWire"
           
       - name: Install custom library
         run: |
