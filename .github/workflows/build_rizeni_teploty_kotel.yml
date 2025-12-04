@@ -29,4 +29,4 @@ jobs:
 
       - name: Compile Arduino project
         run: |
-          arduino-cli compile --fqbn arduino:avr:mega ../rizeni_teploty_kotel.ino
+          arduino-cli compile --fqbn arduino:avr:mega ./
