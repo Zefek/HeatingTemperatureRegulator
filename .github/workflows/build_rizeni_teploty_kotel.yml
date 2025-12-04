@@ -30,6 +30,8 @@ jobs:
       - name: Install libraries
         run: |
           arduino-cli lib install "DS1302"
+          arduino-cli lib install "LiquidCrystal_I2C"
+          
       - name: Install custom library
         run: |
           mkdir -p ~/Arduino/libraries
