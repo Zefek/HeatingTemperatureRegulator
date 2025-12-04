@@ -31,6 +31,7 @@ jobs:
         run: |
           arduino-cli lib install "DS1302"
           arduino-cli lib install "LiquidCrystal_I2C"
+          arduino-cli lib install "DallasTemperature"
           
       - name: Install custom library
         run: |
