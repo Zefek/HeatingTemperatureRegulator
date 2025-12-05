@@ -1,9 +1,6 @@
 name: Build Arduino
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
 
 jobs:
