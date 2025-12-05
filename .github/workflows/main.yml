@@ -1,0 +1,50 @@
+name: Build Arduino on Environment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: Test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Arduino CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          sudo mv bin/arduino-cli /usr/local/bin/
+
+      - name: Initialize Arduino CLI
+        run: |
+          arduino-cli config init
+          arduino-cli core update-index
+
+      - name: Install required board core
+        run: arduino-cli core install arduino:avr  # např. pro Arduino Uno
+      
+      - name: Install libraries
+        run: |
+          arduino-cli lib install "DS1302"
+          arduino-cli lib install "LiquidCrystal_I2C"
+          arduino-cli lib install "DallasTemperature"
+          arduino-cli lib install "OneWire"
+          
+      - name: Install custom library
+        run: |
+          mkdir -p ~/Arduino/libraries
+          git clone https://github.com/Zefek/TX07K-TXC.git ~/Arduino/libraries/TX07K-TXC
+          git clone https://github.com/Zefek/MQTTESP8266.git ~/Arduino/libraries/MQTTESP8266
+
+      - name: Set configs
+        run: |
+          echo "$CONFIG_H" > config.h
+          cp sensorsconfig_default.h sensorsconfig.h
+        env: 
+          CONFIG_H: ${{secrets.CONFIG}}
+
+      - name: Compile Arduino project
+        run: |
+          arduino-cli compile --fqbn arduino:avr:mega ./
