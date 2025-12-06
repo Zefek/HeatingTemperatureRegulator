@@ -1,0 +1,85 @@
+name: Build Arduino on Environment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: self-hosted
+    environment: Home
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Arduino CLI (Windows)
+        shell: powershell
+        run: |
+          $url = "https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip"
+          $out = "$env:USERPROFILE\Downloads\arduino-cli.zip"
+          Invoke-WebRequest -Uri $url -OutFile $out
+
+          $target = "D:\github\arduino-cli"
+          Expand-Archive -Path $out -DestinationPath $target -Force
+
+          # Přidat do PATH jen pro tento job
+          $env:PATH = "$target;$env:PATH"
+    
+          # Volitelně: otestovat
+          D:\github\arduino-cli\arduino-cli.exe version
+
+      - name: Initialize Arduino CLI
+        run: |
+          D:\github\arduino-cli\arduino-cli.exe config init
+          D:\github\arduino-cli\arduino-cli.exe core update-index
+
+      - name: Install required board core
+        run: D:\github\arduino-cli\arduino-cli.exe core install arduino:avr 
+      
+      - name: Install libraries
+        run: |
+          D:\github\arduino-cli\arduino-cli.exe lib install "DS1302"
+          D:\github\arduino-cli\arduino-cli.exe lib install "LiquidCrystal_I2C"
+          D:\github\arduino-cli\arduino-cli.exe lib install "DallasTemperature"
+          D:\github\arduino-cli\arduino-cli.exe lib install "OneWire"
+          
+      - name: Install custom Arduino libraries (Windows)
+        shell: powershell
+        run: |
+          $arduinoLib = "$env:USERPROFILE\Documents\Arduino\libraries"
+          if (Test-Path "$arduinoLib\TX07K-TXC") {
+            Remove-Item -Recurse -Force "$arduinoLib\TX07K-TXC"
+          }
+          if (Test-Path "$arduinoLib\MQTTESP8266") {
+            Remove-Item -Recurse -Force "$arduinoLib\MQTTESP8266"
+          }
+          New-Item -ItemType Directory -Force -Path $arduinoLib
+          git clone https://github.com/Zefek/TX07K-TXC.git "$arduinoLib\TX07K-TXC"
+          git clone https://github.com/Zefek/MQTTESP8266.git "$arduinoLib\MQTTESP8266"
+
+      - name: Set configs (Windows)
+        shell: powershell
+        run: |
+          $env:CONFIG_H | Out-File -Encoding ascii config.h
+          $env:SENSORSCONFIG_H | Out-File -Encoding ascii sensorsconfig.h
+        env:
+          CONFIG_H: ${{ secrets.CONFIG_H }}
+          SENSORSCONFIG_H: ${{ secrets.SENSORSCONFIG_H }}
+
+      - name: Compile Arduino project
+        run: |
+          D:\github\arduino-cli\arduino-cli.exe compile --fqbn arduino:avr:mega ./ --output-dir build
+
+      - name: Zip build directory (Windows)
+        shell: powershell
+        run: |
+          $zipFile = "fw-${env:GITHUB_REF_NAME}_${env:GITHUB_RUN_NUMBER}.zip"
+          Compress-Archive -Path build\* -DestinationPath $zipFile -Force
+
+      - name: Move zip to target directory (Windows)
+        shell: powershell
+        run: |
+          $target = "D:\Firmwares\HeatingRegulator\${{github.environment}}"
+          New-Item -ItemType Directory -Force -Path $target
+          Move-Item -Path fw-${env:GITHUB_REF_NAME}_${env:GITHUB_RUN_NUMBER}.zip -Destination $target
+
