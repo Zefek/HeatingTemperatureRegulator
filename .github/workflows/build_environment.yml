@@ -26,22 +26,22 @@ jobs:
           $env:PATH = "$target;$env:PATH"
     
           # Volitelně: otestovat
-          arduino-cli version
+          D:\github\arduino-cli\arduino-cli.exe version
 
       - name: Initialize Arduino CLI
         run: |
-          arduino-cli config init
-          arduino-cli core update-index
+          D:\github\arduino-cli\arduino-cli.exe config init
+          D:\github\arduino-cli\arduino-cli.exe core update-index
 
       - name: Install required board core
-        run: arduino-cli core install arduino:avr 
+        run: D:\github\arduino-cli\arduino-cli.exe core install arduino:avr 
       
       - name: Install libraries
         run: |
-          arduino-cli lib install "DS1302"
-          arduino-cli lib install "LiquidCrystal_I2C"
-          arduino-cli lib install "DallasTemperature"
-          arduino-cli lib install "OneWire"
+          D:\github\arduino-cli\arduino-cli.exe lib install "DS1302"
+          D:\github\arduino-cli\arduino-cli.exe lib install "LiquidCrystal_I2C"
+          D:\github\arduino-cli\arduino-cli.exe lib install "DallasTemperature"
+          D:\github\arduino-cli\arduino-cli.exe lib install "OneWire"
           
       - name: Install custom Arduino libraries (Windows)
         shell: powershell
@@ -62,7 +62,7 @@ jobs:
 
       - name: Compile Arduino project
         run: |
-          arduino-cli compile --fqbn arduino:avr:mega ./ --output-dir build
+          D:\github\arduino-cli\arduino-cli.exe compile --fqbn arduino:avr:mega ./ --output-dir build
 
       - name: Zip build directory (Windows)
         shell: powershell
