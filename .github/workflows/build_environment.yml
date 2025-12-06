@@ -41,9 +41,10 @@ jobs:
       - name: Set configs
         run: |
           echo "$CONFIG_H" > config.h
-          cp sensorsconfig_default.h sensorsconfig.h
+          echo "$SENSORSCONFIG_H" > sensorsconfig.h
         env: 
-          CONFIG_H: ${{secrets.CONFIG}}
+          CONFIG_H: ${{secrets.CONFIG_H}}
+          SENSORSCONFIG_H: ${{secrets.SENSORSCONFIG_H}}
 
       - name: Compile Arduino project
         run: |
