@@ -48,7 +48,7 @@ jobs:
 
       - name: Compile Arduino project
         run: |
-          arduino-cli compile --fqbn arduino:avr:mega ./
+          arduino-cli compile --fqbn arduino:avr:mega ./ --output-dir build
 
       - name: Zip build directory
         run: zip -r build.zip build/
