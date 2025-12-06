@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: Test
+    environment: Home
 
     steps:
       - name: Checkout repository
