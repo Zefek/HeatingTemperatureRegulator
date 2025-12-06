@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install Arduino CLI (Windows)
-        shell: pwsh
+        shell: powershell
         run: |
           $url = "https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip"
           $out = "$env:USERPROFILE\Downloads\arduino-cli.zip"
@@ -44,7 +44,7 @@ jobs:
           arduino-cli lib install "OneWire"
           
       - name: Install custom Arduino libraries (Windows)
-        shell: pwsh
+        shell: powershell
         run: |
           $arduinoLib = "$env:USERPROFILE\Documents\Arduino\libraries"
           New-Item -ItemType Directory -Force -Path $arduinoLib
@@ -52,7 +52,7 @@ jobs:
           git clone https://github.com/Zefek/MQTTESP8266.git "$arduinoLib\MQTTESP8266"
 
       - name: Set configs (Windows)
-        shell: pwsh
+        shell: powershell
         run: |
           $env:CONFIG_H | Out-File -Encoding utf8 config.h
           $env:SENSORSCONFIG_H | Out-File -Encoding utf8 sensorsconfig.h
@@ -65,13 +65,13 @@ jobs:
           arduino-cli compile --fqbn arduino:avr:mega ./ --output-dir build
 
       - name: Zip build directory (Windows)
-        shell: pwsh
+        shell: powershell
         run: |
           $zipFile = "fw-${env:GITHUB_REF_NAME}_${env:GITHUB_RUN_NUMBER}.zip"
           Compress-Archive -Path build\* -DestinationPath $zipFile -Force
 
       - name: Move zip to target directory (Windows)
-        shell: pwsh
+        shell: powershell
         run: |
           $target = "D:\Firmwares\HeatingRegulator\${{github.environment}}"
           New-Item -ItemType Directory -Force -Path $target
