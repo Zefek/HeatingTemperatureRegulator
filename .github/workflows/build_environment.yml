@@ -49,3 +49,20 @@ jobs:
       - name: Compile Arduino project
         run: |
           arduino-cli compile --fqbn arduino:avr:mega ./
+
+      - name: Zip build directory
+        run: zip -r build.zip build/
+
+      - name: Upload ZIP to OneDrive via Graph API
+        run: |
+          TOKEN=$(curl -s -X POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token \
+            -d "client_id=${{ secrets.ONEDRIVE_CLIENTID }}" \
+            -d "client_secret=${{ secrets.ONEDRIVE_CLIENT_SECRET }}" \
+            -d "refresh_token=${{ secrets.ONEDRIVE_REFRESH_TOKEN }}" \
+            -d "grant_type=refresh_token" | jq -r '.access_token')
+
+          curl -X PUT \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @"build.zip" \
+            "https://graph.microsoft.com/v1.0/me/drive/root:/Firmwares/HeatingRegulator/${{github.environment}}/fw-${{ github.ref_name }}_${{ github.run_number }}.zip:/content"
