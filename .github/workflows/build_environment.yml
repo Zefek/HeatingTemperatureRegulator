@@ -12,10 +12,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Arduino CLI
+      - name: Install Arduino CLI (Windows)
+        shell: pwsh
         run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
-          sudo mv bin/arduino-cli /usr/local/bin/
+          $url = "https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip"
+          $out = "$env:USERPROFILE\Downloads\arduino-cli.zip"
+          Invoke-WebRequest -Uri $url -OutFile $out
+
+          $target = "D:\github\arduino-cli"
+          Expand-Archive -Path $out -DestinationPath $target -Force
+
+          # Přidat do PATH jen pro tento job
+          $env:PATH = "$target;$env:PATH"
+    
+          # Volitelně: otestovat
+          arduino-cli version
 
       - name: Initialize Arduino CLI
         run: |
@@ -23,7 +34,7 @@ jobs:
           arduino-cli core update-index
 
       - name: Install required board core
-        run: arduino-cli core install arduino:avr  # např. pro Arduino Uno
+        run: arduino-cli core install arduino:avr 
       
       - name: Install libraries
         run: |
@@ -32,31 +43,37 @@ jobs:
           arduino-cli lib install "DallasTemperature"
           arduino-cli lib install "OneWire"
           
-      - name: Install custom library
+      - name: Install custom Arduino libraries (Windows)
+        shell: pwsh
         run: |
-          mkdir -p ~/Arduino/libraries
-          git clone https://github.com/Zefek/TX07K-TXC.git ~/Arduino/libraries/TX07K-TXC
-          git clone https://github.com/Zefek/MQTTESP8266.git ~/Arduino/libraries/MQTTESP8266
+          $arduinoLib = "$env:USERPROFILE\Documents\Arduino\libraries"
+          New-Item -ItemType Directory -Force -Path $arduinoLib
+          git clone https://github.com/Zefek/TX07K-TXC.git "$arduinoLib\TX07K-TXC"
+          git clone https://github.com/Zefek/MQTTESP8266.git "$arduinoLib\MQTTESP8266"
 
-      - name: Set configs
+      - name: Set configs (Windows)
+        shell: pwsh
         run: |
-          echo "$CONFIG_H" > config.h
-          echo "$SENSORSCONFIG_H" > sensorsconfig.h
-        env: 
-          CONFIG_H: ${{secrets.CONFIG_H}}
-          SENSORSCONFIG_H: ${{secrets.SENSORSCONFIG_H}}
+          $env:CONFIG_H | Out-File -Encoding utf8 config.h
+          $env:SENSORSCONFIG_H | Out-File -Encoding utf8 sensorsconfig.h
+        env:
+          CONFIG_H: ${{ secrets.CONFIG_H }}
+          SENSORSCONFIG_H: ${{ secrets.SENSORSCONFIG_H }}
 
       - name: Compile Arduino project
         run: |
           arduino-cli compile --fqbn arduino:avr:mega ./ --output-dir build
 
-      - name: Zip build directory
-        run: zip -r fw-${{ github.ref_name }}_${{ github.run_number }}.zip build/
+      - name: Zip build directory (Windows)
+        shell: pwsh
+        run: |
+          $zipFile = "fw-${env:GITHUB_REF_NAME}_${env:GITHUB_RUN_NUMBER}.zip"
+          Compress-Archive -Path build\* -DestinationPath $zipFile -Force
 
       - name: Move zip to target directory (Windows)
         shell: pwsh
         run: |
           $target = "D:\Firmwares\HeatingRegulator\${{github.environment}}"
           New-Item -ItemType Directory -Force -Path $target
-          Move-Item -Path build.zip -Destination $target
-          
+          Move-Item -Path fw-${env:GITHUB_REF_NAME}_${env:GITHUB_RUN_NUMBER}.zip -Destination $target
+
