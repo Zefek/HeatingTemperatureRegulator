@@ -54,8 +54,8 @@ jobs:
       - name: Set configs (Windows)
         shell: powershell
         run: |
-          $env:CONFIG_H | Out-File -Encoding utf8 config.h
-          $env:SENSORSCONFIG_H | Out-File -Encoding utf8 sensorsconfig.h
+          $env:CONFIG_H | Out-File -Encoding utf8NoBOM config.h
+          $env:SENSORSCONFIG_H | Out-File -Encoding utf8NoBOM sensorsconfig.h
         env:
           CONFIG_H: ${{ secrets.CONFIG_H }}
           SENSORSCONFIG_H: ${{ secrets.SENSORSCONFIG_H }}
