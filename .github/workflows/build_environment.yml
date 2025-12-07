@@ -1,7 +1,7 @@
 name: Build Arduino on Environment
 
 on:
-  workflow_dispatch:
+  deployment:
 
 jobs:
   build:
