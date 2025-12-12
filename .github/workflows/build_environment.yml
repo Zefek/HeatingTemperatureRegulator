@@ -1,61 +1,34 @@
-name: Build Arduino on Environment
+name: Build HeatingRegulator on Environment
 
 on:
   deployment:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: [self-hosted, iot]
     environment: Home
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Arduino CLI (Windows)
-        shell: powershell
-        run: |
-          $url = "https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip"
-          $out = "$env:USERPROFILE\Downloads\arduino-cli.zip"
-          Invoke-WebRequest -Uri $url -OutFile $out
-
-          $target = "D:\github\arduino-cli"
-          Expand-Archive -Path $out -DestinationPath $target -Force
-
-          # Přidat do PATH jen pro tento job
-          $env:PATH = "$target;$env:PATH"
-    
-          # Volitelně: otestovat
-          D:\github\arduino-cli\arduino-cli.exe version
-
       - name: Initialize Arduino CLI
         run: |
-          D:\github\arduino-cli\arduino-cli.exe config init
-          D:\github\arduino-cli\arduino-cli.exe core update-index
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml core update-index
 
       - name: Install required board core
-        run: D:\github\arduino-cli\arduino-cli.exe core install arduino:avr 
-      
-      - name: Install libraries
-        run: |
-          D:\github\arduino-cli\arduino-cli.exe lib install "DS1302"
-          D:\github\arduino-cli\arduino-cli.exe lib install "LiquidCrystal_I2C"
-          D:\github\arduino-cli\arduino-cli.exe lib install "DallasTemperature"
-          D:\github\arduino-cli\arduino-cli.exe lib install "OneWire"
+        run: | 
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml core install arduino:avr 
           
       - name: Install custom Arduino libraries (Windows)
         shell: powershell
         run: |
-          $arduinoLib = "$env:USERPROFILE\Documents\Arduino\libraries"
-          if (Test-Path "$arduinoLib\TX07K-TXC") {
-            Remove-Item -Recurse -Force "$arduinoLib\TX07K-TXC"
-          }
-          if (Test-Path "$arduinoLib\MQTTESP8266") {
-            Remove-Item -Recurse -Force "$arduinoLib\MQTTESP8266"
-          }
-          New-Item -ItemType Directory -Force -Path $arduinoLib
-          git clone https://github.com/Zefek/TX07K-TXC.git "$arduinoLib\TX07K-TXC"
-          git clone https://github.com/Zefek/MQTTESP8266.git "$arduinoLib\MQTTESP8266"
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml lib install DS1302
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml lib install LiquidCrystal_I2C
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml lib install DallasTemperature
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml lib install OneWire
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml lib install TX07K-TXC
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml lib install MQTTESP8266
 
       - name: Set configs (Windows)
         shell: powershell
@@ -68,18 +41,10 @@ jobs:
 
       - name: Compile Arduino project
         run: |
-          D:\github\arduino-cli\arduino-cli.exe compile --fqbn arduino:avr:mega ./ --output-dir build
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml compile --fqbn arduino:avr:mega ./ --output-dir build
 
-      - name: Zip build directory (Windows)
-        shell: powershell
+      - name: Upload firmware to Arduino
         run: |
-          $zipFile = "fw-${env:GITHUB_REF_NAME}_${env:GITHUB_RUN_NUMBER}.zip"
-          Compress-Archive -Path build\* -DestinationPath $zipFile -Force
-
-      - name: Move zip to target directory (Windows)
-        shell: powershell
-        run: |
-          $target = "D:\Firmwares\HeatingRegulator\${{github.environment}}"
-          New-Item -ItemType Directory -Force -Path $target
-          Move-Item -Path fw-${env:GITHUB_REF_NAME}_${env:GITHUB_RUN_NUMBER}.zip -Destination $target
+          $port = "${{ github.event.deployment.payload.serial_port }}"
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file config.yaml upload --fqbn arduino:avr:mega --port $port --input-dir build
 
