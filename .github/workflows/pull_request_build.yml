@@ -34,11 +34,7 @@ jobs:
           arduino-cli lib install "DallasTemperature"
           arduino-cli lib install "OneWire"
           arduino-cli lib install "MQTTESP8266"
-          
-      - name: Install custom library
-        run: |
-          mkdir -p ~/Arduino/libraries
-          git clone https://github.com/Zefek/TX07K-TXC.git ~/Arduino/libraries/TX07K-TXC
+          arduino-cli lib install "TX07K-TXC Temperature sensor Library"
 
       - name: Set configs
         run: |
