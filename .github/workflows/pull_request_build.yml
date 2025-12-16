@@ -1,4 +1,4 @@
-name: Build Arduino
+name: Build
 
 on:
   push:
@@ -9,7 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    env:
+      ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -33,12 +34,8 @@ jobs:
           arduino-cli lib install "LiquidCrystal_I2C"
           arduino-cli lib install "DallasTemperature"
           arduino-cli lib install "OneWire"
-          
-      - name: Install custom library
-        run: |
-          mkdir -p ~/Arduino/libraries
-          git clone https://github.com/Zefek/TX07K-TXC.git ~/Arduino/libraries/TX07K-TXC
-          git clone https://github.com/Zefek/MQTTESP8266.git ~/Arduino/libraries/MQTTESP8266
+          arduino-cli lib install "MQTTESP8266"
+          arduino-cli lib install --git-url https://github.com/Zefek/TX07K-TXC.git
 
       - name: Set configs
         run: |
