@@ -18,7 +18,7 @@
 #define MININPUTTEMPERATURE 30 //Minimální teplota na výstupu z akumulace
 #define ONEWIREBUSPIN       7
 #define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
-#define SERVO1PC            700 //Jedno procento z intervalu serva
+#define SERVO1PC            700L //Jedno procento z intervalu serva
 #define MINSERVOINTERVAL    700    //Minimální interval pro aktivaci serva
 #define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
@@ -197,7 +197,10 @@ void setup() {
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   ComputeOutsideTemperatureAverage();
   lcd.EndInitialize();
-  currentState.outsideAvgTemp[0] = 0xFF;
+  currentState.outsideAvgTemp[0] = 0x07;
+  currentState.outsideAvgTemp[1] = 0x0F;
+  currentState.outsideAvgTemp[2] = 0x0F;
+  currentState.outsideAvgTemp[3] = 0x0F;
   resetServo = true;
   //wdt_enable(WDTO_8S);
 }
@@ -689,6 +692,17 @@ void SetHeatingTemperatureByOverheating()
   }
 }
 
+long GetIntervalConstrainByState(long interval)
+{
+  if(currentState.heaterTemp >= 83 && currentState.inputTemp - 2 < currentState.setTemp)
+  {
+    long delta = 65L - (long)currentState.valvePosition;
+    long newInterval = delta * SERVO1PC;
+    return min(newInterval, interval);
+  }
+  return interval;
+}
+
 void loop() {
   wdt_reset();
   currentMillis = millis();
@@ -748,6 +762,7 @@ void loop() {
       dFiltered = dFiltered  + alpha * (change - dFiltered);
     }
     long newInterval = constrain((diff * PCONST) + (dFiltered * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE);
+    newInterval = GetIntervalConstrainByState(newInterval);
     lastCurrentTemp = currentState.currentTemp;
     if(abs(newInterval) >= MINSERVOINTERVAL && !relayOn)
     {
