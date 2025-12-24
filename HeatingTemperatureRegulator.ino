@@ -20,7 +20,6 @@
 #define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
 #define SERVO1PC            700L //Jedno procento z intervalu serva
 #define MINSERVOINTERVAL    700    //Minimální interval pro aktivaci serva
-#define TEMPCHECKINTERVAL   20000   //Vzorkovací interval
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
 #define FASTAVGALPHA        0.3
 #define SLOWAVGALPHA        0.035
