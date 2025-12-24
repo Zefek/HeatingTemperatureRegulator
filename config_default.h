@@ -20,6 +20,7 @@
 #define MAXTEMPDIFFERENCE 0
 #define PCONST            0  //P konstanta pro PID
 #define DCONST            0 //D konstanta pro PID
+#define TEMPCHECKINTERVAL   0   //Vzorkovací interval
 
 double equithermalCurveZeroPoint = 0;
 double insideTemperature = 0.0;
