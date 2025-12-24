@@ -635,7 +635,6 @@ void sendHeaterToHomeAssistant()
   tempSensors.GetAcumulator2Temperature(&currentState.acum2);
   tempSensors.GetAcumulator3Temperature(&currentState.acum3);
   tempSensors.GetAcumulator4Temperature(&currentState.acum4);
-  tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp);
   tempSensors.GetHeaterTemperature(&currentState.heaterTemp);
   tempSensors.GetBoilerTemperature(&currentState.boilerTemp);
   convertToHalfByte((int)slowAverageWasteGasTemperature, currentState.wasteGasTemp, 4);
@@ -696,10 +695,20 @@ long GetIntervalConstrainByState(long interval)
 {
   if(currentState.heaterTemp >= 83 && currentState.inputTemp - 2 < currentState.setTemp)
   {
+    //tady musí být skok na 65 - silné omezení zeshora
     long delta = 65L - (long)currentState.valvePosition;
     long newInterval = delta * SERVO1PC;
     return min(newInterval, interval);
   }
+  long min = 0;
+  long max = 100;
+  if(currentState.inputTemp > currentState.returnTemp && currentState.valvePosition >= min && currentState.valvePosition <= max)
+  {
+    uint8_t setPoint = constrain(((double)(currentState.setTemp - currentState.returnTemp) / (currentState.inputTemp - currentState.returnTemp))*100, 0, 100);
+    min = max(setPoint - 2, 0);
+    max = min(setPoint + 2, 100);
+    return constrain(interval, (min - currentState.valvePosition) * SERVO1PC, (max - currentState.valvePosition) * SERVO1PC);
+  }  
   return interval;
 }
 
@@ -747,6 +756,7 @@ void loop() {
  
   if(currentState.heatingActive == 1 && currentMillis - lastRegulatorMeasurement  > TEMPCHECKINTERVAL)
   {
+    tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp);
     int maxTemp = min((int)currentState.returnTemp + MAXTEMPDIFFERENCE, (int)currentState.setTemp);
     int diff = constrain((maxTemp - (int)currentState.currentTemp), -3, 3);
     double time = (double)(currentMillis - lastRegulatorMeasurement);
