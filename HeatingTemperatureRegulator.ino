@@ -15,7 +15,6 @@
 #define MOREHEATINGRELAYPIN 8
 #define LESSHEATINGRELAYPIN 9
 #define HEATINGPUMPRELAYPIN 10
-#define MININPUTTEMPERATURE 30 //Minimální teplota na výstupu z akumulace
 #define ONEWIREBUSPIN       7
 #define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
 #define SERVO1PC            700L //Jedno procento z intervalu serva
@@ -23,7 +22,6 @@
 #define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
 #define FASTAVGALPHA        0.3
 #define SLOWAVGALPHA        0.035
-#define OVERHEATINGTEMPERATURE 60
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
@@ -555,14 +553,14 @@ void HeatingOff()
 
 void checkHeating()
 {
-  if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= 82)
+  if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= AUTOMATICTEMPERATURE)
   {
     previousMode = currentState.mode;
     currentState.mode = AUTOMATIC;
     shouldHeatingBeOnByTemperature = true;
     lcd.SetMode(currentState.mode);
   }
-  if(shouldHeatingBeOnByTemperature && currentState.heaterTemp < 82)
+  if(shouldHeatingBeOnByTemperature && currentState.heaterTemp < AUTOMATICTEMPERATURE - 1)
   {
     currentState.mode = previousMode;
     shouldHeatingBeOnByTemperature = false;
@@ -679,13 +677,13 @@ void sendFVEToHomeAssistant()
 
 void SetHeatingTemperatureByOverheating()
 {
-  if(currentState.heaterTemp > 97 && !overheating)
+  if(currentState.heaterTemp > HEATEROVERHEATINGTEMPERATURE && !overheating)
   {
     overheating = true;
     currentState.setTemp = OVERHEATINGTEMPERATURE;
     lcd.SetRequiredTemperature(currentState.setTemp);
   }
-  if(currentState.heaterTemp < 95 && overheating)
+  if(currentState.heaterTemp < HEATEROVERHEATINGTEMPERATURE - 2 && overheating)
   {
     overheating = false;
   }
@@ -693,7 +691,7 @@ void SetHeatingTemperatureByOverheating()
 
 long GetIntervalConstrainByState(long interval)
 {
-  if(currentState.heaterTemp >= 83 && currentState.inputTemp - 2 < currentState.setTemp)
+  if(currentState.heaterTemp >= AUTOMATICTEMPERATURE && currentState.inputTemp - 2 < currentState.setTemp)
   {
     long delta = 65L - (long)currentState.valvePosition;
     long newInterval = delta * SERVO1PC;
