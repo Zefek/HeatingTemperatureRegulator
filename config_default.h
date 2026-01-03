@@ -21,6 +21,10 @@
 #define PCONST            0  //P konstanta pro PID
 #define DCONST            0 //D konstanta pro PID
 #define TEMPCHECKINTERVAL   0   //Vzorkovací interval
+#define AUTOMATICTEMPERATURE 0
+#define HEATEROVERHEATINGTEMPERATURE 0
+#define OVERHEATINGTEMPERATURE 0
+#define MININPUTTEMPERATURE 0
 
 double equithermalCurveZeroPoint = 0;
 double insideTemperature = 0.0;
