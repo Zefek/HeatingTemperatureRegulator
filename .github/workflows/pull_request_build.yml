@@ -35,7 +35,7 @@ jobs:
           arduino-cli lib install "DallasTemperature"
           arduino-cli lib install "OneWire"
           arduino-cli lib install "MQTTESP8266"
-          arduino-cli lib install --git-url https://github.com/Zefek/TX07K-TXC.git
+          arduino-cli lib install "TX07K-TXC"
 
       - name: Set configs
         run: |
