@@ -25,6 +25,7 @@
 #define HEATEROVERHEATINGTEMPERATURE 0
 #define OVERHEATINGTEMPERATURE 0
 #define MININPUTTEMPERATURE 0
+#define MAXIMALSERVOSTEP 3
 
 double equithermalCurveZeroPoint = 0;
 double insideTemperature = 0.0;
