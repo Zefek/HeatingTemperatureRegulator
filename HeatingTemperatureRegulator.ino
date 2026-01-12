@@ -26,6 +26,7 @@
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
 void computeRequiredTemperature();
+void DataTimeout();
 
 void convertToHalfByte(int value, uint8_t* result, uint8_t length)
 {
@@ -176,6 +177,7 @@ void setup() {
   outsideTemperatureSensor.Init();
   tempSensors.Init();
   drv.Init(64);
+  drv.DataTimeout = DataTimeout;
   delay(1000);
   pinMode(MOREHEATINGRELAYPIN, OUTPUT);
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
@@ -264,6 +266,11 @@ bool IsLeapYear(int year)
     return true;
   }
   return year % 400 == 0;
+}
+
+void DataTimeout()
+{
+  drv.Close();
 }
 
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
@@ -745,7 +752,7 @@ void loop() {
   if(currentState.heatingActive == 1 && currentMillis - lastRegulatorMeasurement  > TEMPCHECKINTERVAL)
   {
     int maxTemp = min((int)currentState.returnTemp + MAXTEMPDIFFERENCE, (int)currentState.setTemp);
-    int diff = constrain((maxTemp - (int)currentState.currentTemp), -3, 3);
+    int diff = constrain((maxTemp - (int)currentState.currentTemp), -MAXIMALSERVOSTEP, MAXIMALSERVOSTEP);
     double time = (double)(currentMillis - lastRegulatorMeasurement);
     double change = ((int)lastCurrentTemp - (int)currentState.currentTemp) / time;
     double alpha = time / (60000 + time);
