@@ -196,10 +196,10 @@ void setup() {
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   ComputeOutsideTemperatureAverage();
   lcd.EndInitialize();
-  currentState.outsideAvgTemp[0] = 0x07;
+  currentState.outsideAvgTemp[0] = 0x0F;
   currentState.outsideAvgTemp[1] = 0x0F;
   currentState.outsideAvgTemp[2] = 0x0F;
-  currentState.outsideAvgTemp[3] = 0x0F;
+  currentState.outsideAvgTemp[3] = 0x07;
   resetServo = true;
   //wdt_enable(WDTO_8S);
 }
