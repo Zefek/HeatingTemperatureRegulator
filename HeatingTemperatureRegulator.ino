@@ -560,14 +560,14 @@ void HeatingOff()
 
 void checkHeating()
 {
-  if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= AUTOMATICTEMPERATURE)
+  if(!shouldHeatingBeOnByTemperature && HeaterOn(currentState.heaterTemp, currentState.wasteGasTemp))
   {
     previousMode = currentState.mode;
     currentState.mode = AUTOMATIC;
     shouldHeatingBeOnByTemperature = true;
     lcd.SetMode(currentState.mode);
   }
-  if(shouldHeatingBeOnByTemperature && currentState.heaterTemp < AUTOMATICTEMPERATURE - 1)
+  if(shouldHeatingBeOnByTemperature && HeaterOff(currentState.heaterTemp, currentState.wasteGasTemp))
   {
     currentState.mode = previousMode;
     shouldHeatingBeOnByTemperature = false;
