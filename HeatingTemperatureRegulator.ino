@@ -196,10 +196,7 @@ void setup() {
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   ComputeOutsideTemperatureAverage();
   lcd.EndInitialize();
-  currentState.outsideAvgTemp[0] = 0x07;
-  currentState.outsideAvgTemp[1] = 0x0F;
-  currentState.outsideAvgTemp[2] = 0x0F;
-  currentState.outsideAvgTemp[3] = 0x0F;
+  convertToHalfByte(999, currentState.outsideAvgTemp, 4);
   resetServo = true;
   //wdt_enable(WDTO_8S);
 }
@@ -560,14 +557,14 @@ void HeatingOff()
 
 void checkHeating()
 {
-  if(!shouldHeatingBeOnByTemperature && currentState.heaterTemp >= AUTOMATICTEMPERATURE)
+  if(!shouldHeatingBeOnByTemperature && HeaterOn(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
     previousMode = currentState.mode;
     currentState.mode = AUTOMATIC;
     shouldHeatingBeOnByTemperature = true;
     lcd.SetMode(currentState.mode);
   }
-  if(shouldHeatingBeOnByTemperature && currentState.heaterTemp < AUTOMATICTEMPERATURE - 1)
+  if(shouldHeatingBeOnByTemperature && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
     currentState.mode = previousMode;
     shouldHeatingBeOnByTemperature = false;

@@ -27,6 +27,9 @@
 #define MININPUTTEMPERATURE 0
 #define MAXIMALSERVOSTEP 3
 
+#define HeaterOn(ht, wgt)  false
+#define HeaterOff(ht, wgt)  false
+
 double equithermalCurveZeroPoint = 0;
 double insideTemperature = 0.0;
 double exponent = 0.0;
