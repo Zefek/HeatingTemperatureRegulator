@@ -184,9 +184,11 @@ void setup() {
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
   pinMode(HEATINGPUMPRELAYPIN, OUTPUT);
   pinMode(2, INPUT);
+  pinMode(HEATERWASTEGASTHERMOSTATPIN, OUTPUT);
   digitalWrite(MOREHEATINGRELAYPIN, HIGH);
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
+  digitalWrite(HEATERWASTEGASTHERMOSTATPIN, HIGH);
   currentState.mode = AUTOMATIC; 
   lcd.SetMode(currentState.mode);
   computeRequiredTemperature();
