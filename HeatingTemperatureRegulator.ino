@@ -9,19 +9,20 @@
 #include <MQTTClient.h>
 #include <EspDrv.h>
 
-#define I2C_ADDR            0x27
-#define LCD_COLUMNS         16
-#define LCD_LINES           2
-#define MOREHEATINGRELAYPIN 8
-#define LESSHEATINGRELAYPIN 9
-#define HEATINGPUMPRELAYPIN 10
-#define ONEWIREBUSPIN       7
-#define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
-#define SERVO1PC            700L //Jedno procento z intervalu serva
-#define MINSERVOINTERVAL    700    //Minimální interval pro aktivaci serva
-#define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
-#define FASTAVGALPHA        0.3
-#define SLOWAVGALPHA        0.035
+#define I2C_ADDR                    0x27
+#define LCD_COLUMNS                 16
+#define LCD_LINES                    2
+#define MOREHEATINGRELAYPIN          8
+#define LESSHEATINGRELAYPIN          9
+#define HEATINGPUMPRELAYPIN         10
+#define HEATERWASTEGASTHERMOSTATPIN 11
+#define ONEWIREBUSPIN                7
+#define SERVOMAXRANGE               70000 //Časový interval pohybu serva mezi krajními hodnotami
+#define SERVO1PC                    700L //Jedno procento z intervalu serva
+#define MINSERVOINTERVAL            700    //Minimální interval pro aktivaci serva
+#define AVGOUTTEMPVALUES            180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
+#define FASTAVGALPHA                0.3
+#define SLOWAVGALPHA                0.035
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
@@ -502,6 +503,18 @@ void setRelayOff()
   relayOn = false;
 }
 
+void setWasteGasThermostat(bool enabled)
+{
+  if(enabled)
+  {
+    digitalWrite(HEATERWASTEGASTHERMOSTATPIN, LOW);
+  }
+  else
+  {
+    digitalWrite(HEATERWASTEGASTHERMOSTATPIN, HIGH);
+  }
+}
+
 bool ShouldBeHeatingOff()
 {
   if(overheating)
@@ -563,12 +576,14 @@ void checkHeating()
     currentState.mode = AUTOMATIC;
     shouldHeatingBeOnByTemperature = true;
     lcd.SetMode(currentState.mode);
+    setWasteGasThermostat(true);
   }
   if(shouldHeatingBeOnByTemperature && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
     currentState.mode = previousMode;
     shouldHeatingBeOnByTemperature = false;
     lcd.SetMode(currentState.mode);
+    setWasteGasThermostat(false);
   }
   if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
