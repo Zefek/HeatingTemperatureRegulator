@@ -163,6 +163,9 @@ bool firstRun = false;
 bool overheating = false;
 double averageSetTemperature = 0;
 bool emaWasSet = false;
+unsigned long heaterStartTimeoutBegin = 0;
+bool checkHeaterStartTimeout = false;
+unsigned long lastWasteGasReadMillis = 0;
 
 void setup() {
   Serial.begin(57600);
@@ -450,15 +453,31 @@ void ComputeOutsideTemperatureAverage()
 
 void ComputeSlowWasteGasTemperature()
 {
+  float previousWasteGasTemperature = slowAverageWasteGasTemperature;
   if(slowAverageWasteGasTemperature == 0)
   {
     slowAverageWasteGasTemperature = averageWasteGasTemperature;
+    previousWasteGasTemperature = slowAverageWasteGasTemperature;
   }
   else
   {
     slowAverageWasteGasTemperature = SLOWAVGALPHA * averageWasteGasTemperature + (1 - SLOWAVGALPHA) * slowAverageWasteGasTemperature;
   }
   lcd.SetWasteGasTemperature((int)slowAverageWasteGasTemperature);
+  unsigned long currentTime = millis();
+  
+  float timeDiffMin = (currentTime - lastWasteGasReadMillis) / 60000.0;
+  if (timeDiffMin > 0 && slowAverageWasteGasTemperature != previousWasteGasTemperature)
+  {
+    float currentGradient = (slowAverageWasteGasTemperature - previousWasteGasTemperature) / timeDiffMin;
+    if (currentGradient > wasteGasGradient && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature) && !checkHeaterStartTimeout) 
+    {
+      checkHeaterStartTimeout = true;
+      heaterStartTimeoutBegin = currentTime;
+      setWasteGasThermostat(true);
+    }
+    lastWasteGasReadMillis = currentTime;
+  }
 }
 
 void ComputeWasteGasTemperature()
@@ -579,6 +598,7 @@ void checkHeating()
     shouldHeatingBeOnByTemperature = true;
     lcd.SetMode(currentState.mode);
     setWasteGasThermostat(true);
+    checkHeaterStartTimeout = false;
   }
   if(shouldHeatingBeOnByTemperature && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
@@ -719,6 +739,16 @@ long GetIntervalConstrainByState(long interval)
     return min(newInterval, interval);
   }
   return interval;
+}
+
+void CheckHeaterStartTimeout()
+{
+  if (millis() - heaterStartTimeoutBegin > heaterStartTimeout  && checkHeaterStartTimeout)
+  {
+    //turn off heater waste gas thermostat
+    setWasteGasThermostat(false);
+    checkHeaterStartTimeout = false;
+  }
 }
 
 void loop() {

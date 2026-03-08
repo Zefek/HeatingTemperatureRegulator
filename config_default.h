@@ -33,4 +33,5 @@
 double equithermalCurveZeroPoint = 0;
 double insideTemperature = 0.0;
 double exponent = 0.0;
-
+unsigned long heaterStartTimeout = 0;
+short wasteGasGradient = 0;
