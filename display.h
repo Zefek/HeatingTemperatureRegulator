@@ -24,6 +24,12 @@ class Display
 	  0b00101,
 	  0b00010
   };
+  byte flame1[8] = { B00100, B01000, B01010, B10010, B10101, B10101, B10001, B01110 };
+  byte flame2[8] = { B00100, B00010, B01010, B01001, B10101, B10101, B10001, B01110 };
+
+  byte pump1[8] = { B00100, B00100, B00000, B11011, B00000, B00100, B00100, B00000 };
+  byte pump2[8] = { B01010, B01010, B00100, B00000, B00100, B01010, B01010, B00000 };
+
     LiquidCrystal_I2C *lcd;//(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
     uint8_t requiredTemperature = 0;
     double outTemperature = 14;
@@ -41,6 +47,7 @@ class Display
     bool thermostat = false;
     bool initializing = false;
     bool forcePrint = false;
+    bool heaterOn = false;
 
     void print2digits(uint8_t number);
     void printTime();
@@ -61,4 +68,5 @@ class Display
     void SetWasteGasTemperature(int wasteGasTemperature);
     void SetThermostat(bool thermostat);
     void EndInitialize();
+    void SetHeater(bool heaterOn);
 };

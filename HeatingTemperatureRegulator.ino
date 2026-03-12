@@ -95,6 +95,7 @@ struct HeaterState {
   uint8_t boilerTemp;
   uint8_t outsideAvgTemp[4];
   uint8_t mode;
+  uint8_t flame;
 };
 
 struct FVEData
@@ -166,6 +167,7 @@ bool emaWasSet = false;
 unsigned long heaterStartTimeoutBegin = 0;
 bool checkHeaterStartTimeout = false;
 unsigned long lastWasteGasReadMillis = 0;
+unsigned short wasteGasGradientCount = 0;
 
 void setup() {
   Serial.begin(57600);
@@ -453,7 +455,7 @@ void ComputeOutsideTemperatureAverage()
 
 void ComputeSlowWasteGasTemperature()
 {
-  float previousWasteGasTemperature = slowAverageWasteGasTemperature;
+  int previousWasteGasTemperature = (int)slowAverageWasteGasTemperature;
   if(slowAverageWasteGasTemperature == 0)
   {
     slowAverageWasteGasTemperature = averageWasteGasTemperature;
@@ -467,14 +469,25 @@ void ComputeSlowWasteGasTemperature()
   unsigned long currentTime = millis();
   
   float timeDiffMin = (currentTime - lastWasteGasReadMillis) / 60000.0;
-  if (timeDiffMin > 0 && slowAverageWasteGasTemperature != previousWasteGasTemperature)
+  if (timeDiffMin > 0 && (int)slowAverageWasteGasTemperature != previousWasteGasTemperature)
   {
-    float currentGradient = (slowAverageWasteGasTemperature - previousWasteGasTemperature) / timeDiffMin;
-    if (currentGradient > wasteGasGradient && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature) && !checkHeaterStartTimeout) 
+    float currentGradient = ((int)slowAverageWasteGasTemperature - previousWasteGasTemperature) / timeDiffMin;
+    if (currentGradient > wasteGasMinGradient && currentGradient < wasteGasMaxGradient && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature) && !checkHeaterStartTimeout) 
     {
-      checkHeaterStartTimeout = true;
-      heaterStartTimeoutBegin = currentTime;
-      setWasteGasThermostat(true);
+      wasteGasGradientCount++;
+      if(wasteGasGradientCount > heaterStartTryCount)
+      {
+        checkHeaterStartTimeout = true;
+        heaterStartTimeoutBegin = currentTime;
+        setWasteGasThermostat(true);
+        lcd.SetHeater(true);
+        wasteGasGradientCount = 0;
+        currentState.flame = 1;
+      }
+    }
+    else if(currentGradient <= wasteGasMinGradient && wasteGasGradientCount > 0)
+    {
+      wasteGasGradientCount--;
     }
     lastWasteGasReadMillis = currentTime;
   }
@@ -598,7 +611,9 @@ void checkHeating()
     shouldHeatingBeOnByTemperature = true;
     lcd.SetMode(currentState.mode);
     setWasteGasThermostat(true);
+    lcd.SetHeater(true);
     checkHeaterStartTimeout = false;
+    currentState.flame = 1;
   }
   if(shouldHeatingBeOnByTemperature && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
@@ -606,6 +621,8 @@ void checkHeating()
     shouldHeatingBeOnByTemperature = false;
     lcd.SetMode(currentState.mode);
     setWasteGasThermostat(false);
+    lcd.SetHeater(false);
+    currentState.flame = 0;
   }
   if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
@@ -748,6 +765,8 @@ void CheckHeaterStartTimeout()
     //turn off heater waste gas thermostat
     setWasteGasThermostat(false);
     checkHeaterStartTimeout = false;
+    lcd.SetHeater(false);
+    currentState.flame = 2;
   }
 }
 
@@ -770,6 +789,7 @@ void loop() {
     ComputeWasteGasTemperature();
     fastReadMillis = currentMillis;
   }
+  CheckHeaterStartTimeout();
   if(currentMillis - temperatureReadMillis > 1000)
   {
     readCurrentHeatingTemperature();
