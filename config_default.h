@@ -34,6 +34,6 @@ double equithermalCurveZeroPoint = 0;
 double insideTemperature = 0.0;
 double exponent = 0.0;
 unsigned long heaterStartTimeout = 0;
-float wasteGasGradient = 0;
+float wasteGasMinGradient = 0;
 float wasteGasMaxGradient = 0;
 short heaterStartTryCount = 0;
