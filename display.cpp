@@ -37,26 +37,27 @@
     {
       if(blink)
       {
-        lcd->setCursor(9, 1);
-        lcd->print("       ");
+        lcd->setCursor(10, 1);
+        lcd->print("      ");
       }
       else
       {
-        //celkem 6 míst -10.00
-        lcd->setCursor(9, 1);
-        lcd->print("       ");
-        lcd->setCursor(9, 1);
+        //celkem 6 míst -10.0°
+        lcd->setCursor(10, 1);
+        //mažeme jen 5, symbol ° se nepřepisuje
+        lcd->print("      ");
+        lcd->setCursor(10, 1);
         if(outTemperature >= 0 && outTemperature < 10)
         {
-          //8.98
+          //**8.9°
           lcd->print("  ");
         }
         if((outTemperature > -10 && outTemperature < 0) || outTemperature >= 10)
         {
-          //-8.89
+          //*-8.8°
           lcd->print(" ");
         }
-        lcd->print(outTemperature);
+        lcd->print(outTemperature, 1);
         lcd->write((byte)1);
       }
     }
@@ -73,6 +74,10 @@
       lcd->backlight();
       lcd->createChar(0, onChar);
       lcd->createChar(1, celsiusChar);
+      lcd->createChar(2, flame1);
+      lcd->createChar(3, flame2);
+      lcd->createChar(4, pump1);
+      lcd->createChar(5, pump2);
       this->rtc = rtc;
       lcd->clear();
       lcd->setCursor(0, 0);
@@ -218,7 +223,12 @@
         if(heatingOn)
         {
           lcd->setCursor(4, 0);
-          lcd->write((byte)0);
+          lcd->write((byte)4);
+        }
+        if(heaterOn)
+        {
+          lcd->setCursor(8, 1);
+          lcd->write((byte)2);
         }
       }
       else
@@ -228,7 +238,12 @@
         if(heatingOn)
         {
           lcd->setCursor(4, 0);
-          lcd->print(" ");
+          lcd->write((byte)5);
+        }
+        if(heaterOn)
+        {
+          lcd->setCursor(8, 1);
+          lcd->write((byte)3);
         }
       }
       if(!outsideTemperatureWasSet)
@@ -276,4 +291,20 @@
       SetThermostat(this->thermostat);
       this->Print();
       forcePrint = false;
+    }
+
+    void Display::SetHeater(bool heaterOn)
+    {
+      if(this->heaterOn != heaterOn || forcePrint)
+      {
+        this->heaterOn = heaterOn;
+        if(!initializing)
+        {
+          if(!heaterOn)
+          {
+            lcd->setCursor(8, 1);
+            lcd->print(" ");
+          }
+        }
+      }
     }

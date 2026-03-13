@@ -3,7 +3,7 @@
 
 void BelWattmeter::ProcessByte(int dataIndex, uint8_t data)
 {
-  if(dataIndex == 1) {  Serial.print("BEL DataLength: "); Serial.println(data); this->dataLength = data; }
+  if(dataIndex == 1)  this->dataLength = data;
   if(dataIndex == 4)  this->voltageTmp = data;
   if(dataIndex == 5)  this->voltageTmp |= data << 8;
   if(dataIndex == 6)  this->currentTmp = data;
@@ -35,7 +35,6 @@ void BelWattmeter::Loop()
       case WAIT_FOR_START:
         if(read == 0xFC)
         {
-          Serial.println("INTO FRAME");
           state = IN_FRAME;
           crc = 0;
           feCount = 0;
@@ -58,16 +57,6 @@ void BelWattmeter::Loop()
           feCount++;
           if(feCount == 2)
           {
-            Serial.print("BEL: ");
-            Serial.print(voltageTmp);
-            Serial.print("V | ");
-            Serial.print(currentTmp);
-            Serial.print("A | ");
-            Serial.print(powerTmp);
-            Serial.print("W | ");
-            Serial.print(consumptionTmp);
-            Serial.print("Wh | ");
-            Serial.println(crcOk);
             if(crcOk && voltageTmp < 360 && currentTmp < 1600 && powerTmp < 4000)
             {
               data.voltage = ((unsigned long)data.voltage * counter + voltageTmp) / (counter + 1);

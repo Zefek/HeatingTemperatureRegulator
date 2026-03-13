@@ -9,19 +9,20 @@
 #include <MQTTClient.h>
 #include <EspDrv.h>
 
-#define I2C_ADDR            0x27
-#define LCD_COLUMNS         16
-#define LCD_LINES           2
-#define MOREHEATINGRELAYPIN 8
-#define LESSHEATINGRELAYPIN 9
-#define HEATINGPUMPRELAYPIN 10
-#define ONEWIREBUSPIN       7
-#define SERVOMAXRANGE       70000 //Časový interval pohybu serva mezi krajními hodnotami
-#define SERVO1PC            700L //Jedno procento z intervalu serva
-#define MINSERVOINTERVAL    700    //Minimální interval pro aktivaci serva
-#define AVGOUTTEMPVALUES    180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
-#define FASTAVGALPHA        0.3
-#define SLOWAVGALPHA        0.035
+#define I2C_ADDR                    0x27
+#define LCD_COLUMNS                 16
+#define LCD_LINES                    2
+#define MOREHEATINGRELAYPIN          8
+#define LESSHEATINGRELAYPIN          9
+#define HEATINGPUMPRELAYPIN         10
+#define HEATERWASTEGASTHERMOSTATPIN 11
+#define ONEWIREBUSPIN                7
+#define SERVOMAXRANGE               70000 //Časový interval pohybu serva mezi krajními hodnotami
+#define SERVO1PC                    700L //Jedno procento z intervalu serva
+#define MINSERVOINTERVAL            700    //Minimální interval pro aktivaci serva
+#define AVGOUTTEMPVALUES            180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
+#define FASTAVGALPHA                0.3
+#define SLOWAVGALPHA                0.035
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
@@ -94,6 +95,7 @@ struct HeaterState {
   uint8_t boilerTemp;
   uint8_t outsideAvgTemp[4];
   uint8_t mode;
+  uint8_t flame;
 };
 
 struct FVEData
@@ -162,6 +164,10 @@ bool firstRun = false;
 bool overheating = false;
 double averageSetTemperature = 0;
 bool emaWasSet = false;
+unsigned long heaterStartTimeoutBegin = 0;
+bool checkHeaterStartTimeout = false;
+unsigned long lastWasteGasReadMillis = 0;
+unsigned short wasteGasGradientCount = 0;
 
 void setup() {
   Serial.begin(57600);
@@ -183,9 +189,11 @@ void setup() {
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
   pinMode(HEATINGPUMPRELAYPIN, OUTPUT);
   pinMode(2, INPUT);
+  pinMode(HEATERWASTEGASTHERMOSTATPIN, OUTPUT);
   digitalWrite(MOREHEATINGRELAYPIN, HIGH);
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
+  digitalWrite(HEATERWASTEGASTHERMOSTATPIN, HIGH);
   currentState.mode = AUTOMATIC; 
   lcd.SetMode(currentState.mode);
   computeRequiredTemperature();
@@ -447,15 +455,42 @@ void ComputeOutsideTemperatureAverage()
 
 void ComputeSlowWasteGasTemperature()
 {
+  int previousWasteGasTemperature = (int)slowAverageWasteGasTemperature;
   if(slowAverageWasteGasTemperature == 0)
   {
     slowAverageWasteGasTemperature = averageWasteGasTemperature;
+    previousWasteGasTemperature = slowAverageWasteGasTemperature;
   }
   else
   {
     slowAverageWasteGasTemperature = SLOWAVGALPHA * averageWasteGasTemperature + (1 - SLOWAVGALPHA) * slowAverageWasteGasTemperature;
   }
   lcd.SetWasteGasTemperature((int)slowAverageWasteGasTemperature);
+  unsigned long currentTime = millis();
+  
+  float timeDiffMin = (currentTime - lastWasteGasReadMillis) / 60000.0;
+  if (timeDiffMin > 0 && (int)slowAverageWasteGasTemperature != previousWasteGasTemperature)
+  {
+    float currentGradient = ((int)slowAverageWasteGasTemperature - previousWasteGasTemperature) / timeDiffMin;
+    if (currentGradient > wasteGasMinGradient && currentGradient < wasteGasMaxGradient && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature) && !checkHeaterStartTimeout) 
+    {
+      wasteGasGradientCount++;
+      if(wasteGasGradientCount > heaterStartTryCount)
+      {
+        checkHeaterStartTimeout = true;
+        heaterStartTimeoutBegin = currentTime;
+        setWasteGasThermostat(true);
+        lcd.SetHeater(true);
+        wasteGasGradientCount = 0;
+        currentState.flame = 1;
+      }
+    }
+    else if(currentGradient <= wasteGasMinGradient && wasteGasGradientCount > 0)
+    {
+      wasteGasGradientCount--;
+    }
+    lastWasteGasReadMillis = currentTime;
+  }
 }
 
 void ComputeWasteGasTemperature()
@@ -500,6 +535,18 @@ void setRelayOff()
   digitalWrite(MOREHEATINGRELAYPIN, HIGH);
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   relayOn = false;
+}
+
+void setWasteGasThermostat(bool enabled)
+{
+  if(enabled)
+  {
+    digitalWrite(HEATERWASTEGASTHERMOSTATPIN, LOW);
+  }
+  else
+  {
+    digitalWrite(HEATERWASTEGASTHERMOSTATPIN, HIGH);
+  }
 }
 
 bool ShouldBeHeatingOff()
@@ -563,12 +610,19 @@ void checkHeating()
     currentState.mode = AUTOMATIC;
     shouldHeatingBeOnByTemperature = true;
     lcd.SetMode(currentState.mode);
+    setWasteGasThermostat(true);
+    lcd.SetHeater(true);
+    checkHeaterStartTimeout = false;
+    currentState.flame = 1;
   }
   if(shouldHeatingBeOnByTemperature && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
     currentState.mode = previousMode;
     shouldHeatingBeOnByTemperature = false;
     lcd.SetMode(currentState.mode);
+    setWasteGasThermostat(false);
+    lcd.SetHeater(false);
+    currentState.flame = 0;
   }
   if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
@@ -704,6 +758,18 @@ long GetIntervalConstrainByState(long interval)
   return interval;
 }
 
+void CheckHeaterStartTimeout()
+{
+  if (millis() - heaterStartTimeoutBegin > heaterStartTimeout  && checkHeaterStartTimeout)
+  {
+    //turn off heater waste gas thermostat
+    setWasteGasThermostat(false);
+    checkHeaterStartTimeout = false;
+    lcd.SetHeater(false);
+    currentState.flame = 2;
+  }
+}
+
 void loop() {
   wdt_reset();
   currentMillis = millis();
@@ -723,6 +789,7 @@ void loop() {
     ComputeWasteGasTemperature();
     fastReadMillis = currentMillis;
   }
+  CheckHeaterStartTimeout();
   if(currentMillis - temperatureReadMillis > 1000)
   {
     readCurrentHeatingTemperature();
