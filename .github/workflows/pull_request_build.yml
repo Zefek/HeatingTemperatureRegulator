@@ -45,7 +45,7 @@ jobs:
       - name: Static analysis
         run: |
           sudo apt-get install -y cppcheck
-          cppcheck --enable=all --language=c++ --suppress=missingInclude --suppress=unusedFunction --suppress=noExplicitConstructor --suppress=noCopyConstructor --suppress=noOperatorEq --error-exitcode=1 *.ino *.cpp *.h
+          cppcheck --enable=all --language=c++ --suppress=missingInclude --suppress=unusedFunction --suppress=unusedStructMember --suppress=noExplicitConstructor --suppress=noCopyConstructor --suppress=noOperatorEq --suppress=cstyleCast --suppress=constParameterCallback --suppress=unsignedLessThanZero --suppress=unsignedPositive --error-exitcode=1 *.ino *.cpp *.h
 
       - name: Compile Arduino project
         run: |

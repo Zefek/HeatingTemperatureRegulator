@@ -40,7 +40,6 @@ void convertToHalfByte(int value, uint8_t* result, uint8_t length)
 }
 
 void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
-    unsigned char *out_ptr = output;
     int j = 0;
     for(int i = 0; i < length; i++)
     {
@@ -278,7 +277,7 @@ void DataTimeout()
   drv.Close();
 }
 
-void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
+void MQTTMessageReceive(const char* topic, uint8_t* payload, unsigned int length)
 {
   for(int i = 0; i<length; i++)
   {
@@ -319,7 +318,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Bod na nule v topné křivce
   if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
   {
-    char* token;
+    const char* token;
     token = strtok(mqttReceivedData, ";");
     equithermalCurveZeroPoint = atof(token);
     token = strtok(NULL, ";");
@@ -409,7 +408,6 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
 
 void computeRequiredTemperature()
 {
-  double alpha = 0.1818;
   double outsideTemp = outsideTemperatureAverage;
   if(!outsideTemperatureWasSet)
   {
@@ -426,6 +424,7 @@ void computeRequiredTemperature()
     }
     else
     {
+      double alpha = 0.1818;
       averageSetTemperature = constrain(alpha * newValue + (1 - alpha) * averageSetTemperature, 10, 80);
       valueToSet = (int)round(averageSetTemperature);
     }
