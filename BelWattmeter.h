@@ -16,10 +16,10 @@ class BelWattmeter
     ParseState state = WAIT_FOR_START;
     int dataLength = 0;
     int dataIndex = 0;
-    unsigned int voltageTmp;
-    unsigned int currentTmp;
-    unsigned int consumptionTmp;
-    unsigned int powerTmp;
+    unsigned int voltageTmp = 0;
+    unsigned int currentTmp = 0;
+    unsigned int consumptionTmp = 0;
+    unsigned int powerTmp = 0;
     byte crc = 0;
     bool crcOk = false;
     int counter = 0;

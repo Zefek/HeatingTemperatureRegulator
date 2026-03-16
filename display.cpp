@@ -7,7 +7,7 @@
 
 
     void Display::print2digits(uint8_t number) {
-      if (number >= 0 && number < 10) {
+      if (number < 10) {
         lcd->print("0");
       }
       lcd->print(number);

@@ -37,8 +37,8 @@ class Display
     uint8_t currentHeatingTemperature = 0;
     uint8_t hours = 0;
     uint8_t minutes = 0;
-    Ds1302* rtc;
-    unsigned long lastPrint;
+    Ds1302* rtc = nullptr;
+    unsigned long lastPrint = 0;
     bool shouldBlink = false;
     bool heatingOn = false;
     uint8_t mode = 0;
