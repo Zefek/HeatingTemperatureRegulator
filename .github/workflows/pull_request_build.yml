@@ -42,6 +42,11 @@ jobs:
           cp config_default.h config.h
           cp sensorsconfig_default.h sensorsconfig.h
 
+      - name: Static analysis
+        run: |
+          sudo apt-get install -y cppcheck
+          cppcheck --enable=all --suppress=missingInclude --error-exitcode=1 *.ino *.cpp *.h
+
       - name: Compile Arduino project
         run: |
           arduino-cli compile --fqbn arduino:avr:mega ./

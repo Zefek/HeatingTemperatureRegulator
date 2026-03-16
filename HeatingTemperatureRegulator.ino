@@ -206,7 +206,7 @@ void setup() {
   lcd.EndInitialize();
   convertToHalfByte(999, currentState.outsideAvgTemp, 4);
   resetServo = true;
-  //wdt_enable(WDTO_8S);
+  wdt_enable(WDTO_8S);
 }
 
 void MQTTConnect()
