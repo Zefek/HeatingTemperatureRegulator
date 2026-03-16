@@ -277,7 +277,7 @@ void DataTimeout()
   drv.Close();
 }
 
-void MQTTMessageReceive(const char* topic, uint8_t* payload, unsigned int length)
+void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
 {
   for(int i = 0; i<length; i++)
   {
@@ -318,7 +318,7 @@ void MQTTMessageReceive(const char* topic, uint8_t* payload, unsigned int length
   //Bod na nule v topné křivce
   if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
   {
-    const char* token;
+    char* token;
     token = strtok(mqttReceivedData, ";");
     equithermalCurveZeroPoint = atof(token);
     token = strtok(NULL, ";");
