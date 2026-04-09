@@ -3,6 +3,10 @@ name: Build HeatingRegulator on Environment
 on:
   deployment:
 
+permissions:
+  contents: read
+  deployments: write
+
 jobs:
   build:
     runs-on: [self-hosted, iot]
@@ -10,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Initialize Arduino CLI
         run: |
@@ -18,18 +22,18 @@ jobs:
 
       - name: Install required board core
         run: | 
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" core install arduino:avr 
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" core install arduino:avr@1.8.7
           
       - name: Install custom Arduino libraries (Windows)
         shell: powershell
         run: |
           & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib update-index
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install DS1302
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install LiquidCrystal_I2C
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install DallasTemperature
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install OneWire
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install TX07K-TXC
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install MQTTESP8266
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install "Ds1302@1.1.0"
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install "LiquidCrystal_I2C@2.0.0"
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install "DallasTemperature@4.0.6"
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install "OneWire@2.3.8"
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install "TX07K-TXC@1.0.3"
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install "MQTTESP8266@5.1.1"
 
       - name: Set configs (Windows)
         shell: powershell
@@ -45,7 +49,12 @@ jobs:
           & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" compile --fqbn arduino:avr:mega ./ --output-dir build
 
       - name: Upload firmware to Arduino
+        env:
+          SERIAL_PORT: ${{ github.event.deployment.payload.serial_port }}
         run: |
-          $port = "${{ github.event.deployment.payload.serial_port }}"
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" upload --fqbn arduino:avr:mega --port $port --input-dir build
+          if ($env:SERIAL_PORT -notmatch '^COM\d+$') {
+            Write-Error "Invalid serial port format: $env:SERIAL_PORT"
+            exit 1
+          }
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" upload --fqbn arduino:avr:mega --port $env:SERIAL_PORT --input-dir build
 
