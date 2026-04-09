@@ -6,19 +6,18 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL: "true"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Install Arduino CLI
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
-          sudo mv bin/arduino-cli /usr/local/bin/
+        uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02  # v2.0.0
 
       - name: Initialize Arduino CLI
         run: |
@@ -26,16 +25,16 @@ jobs:
           arduino-cli core update-index
 
       - name: Install required board core
-        run: arduino-cli core install arduino:avr  # např. pro Arduino Uno
+        run: arduino-cli core install arduino:avr@1.8.7  # např. pro Arduino Uno
       
       - name: Install libraries
         run: |
-          arduino-cli lib install "DS1302"
-          arduino-cli lib install "LiquidCrystal_I2C"
-          arduino-cli lib install "DallasTemperature"
-          arduino-cli lib install "OneWire"
-          arduino-cli lib install "MQTTESP8266"
-          arduino-cli lib install "TX07K-TXC"
+          arduino-cli lib install "Ds1302@1.1.0"
+          arduino-cli lib install "LiquidCrystal_I2C@2.0.0"
+          arduino-cli lib install "DallasTemperature@4.0.6"
+          arduino-cli lib install "OneWire@2.3.8"
+          arduino-cli lib install "MQTTESP8266@5.1.1"
+          arduino-cli lib install "TX07K-TXC@1.0.3"
 
       - name: Set configs
         run: |
