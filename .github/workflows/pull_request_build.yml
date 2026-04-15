@@ -33,8 +33,8 @@ jobs:
           arduino-cli lib install "LiquidCrystal_I2C@2.0.0"
           arduino-cli lib install "DallasTemperature@4.0.6"
           arduino-cli lib install "OneWire@2.3.8"
-          arduino-cli lib install "MQTTESP8266@5.1.1"
-          arduino-cli lib install "TX07K-TXC@1.0.3"
+          arduino-cli lib install "MQTTESP8266@5.1.2"
+          arduino-cli lib install "TX07K-TXC@1.0.4"
 
       - name: Set configs
         run: |
