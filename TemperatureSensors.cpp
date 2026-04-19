@@ -25,6 +25,7 @@ void TemperatureSensors::Init()
     Serial.println(temp);
   }
   this->sensors->setResolution(currentHeating, 12);
+  this->sensors->setWaitForConversion(false);
 }
 
 void TemperatureSensors::RequestTemperatures()
