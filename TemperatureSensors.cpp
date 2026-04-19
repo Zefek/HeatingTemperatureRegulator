@@ -80,7 +80,7 @@ bool TemperatureSensors::GetCurrentHeatingTemperature(uint8_t* temperature)
 bool TemperatureSensors::GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature)
 {
   float temp = sensors->getTempC(deviceAddress);
-  if(temp <= -127.0f || temp < 0 || temp > 120)
+  if(temp < 0 || temp > 120)
   {
     return false;
   }
