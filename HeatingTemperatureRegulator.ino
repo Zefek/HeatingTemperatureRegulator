@@ -104,11 +104,22 @@ struct FVEData
   uint8_t power[4];
   uint8_t consumption[4];
 };
+
+struct DiagData {
+  uint32_t uptime;
+  uint16_t freeRam;
+  uint16_t wifiReconn;
+  uint16_t mqttReconn;
+  uint16_t sensorErr;
+  uint8_t  resetReason;
+  uint16_t loopMaxMs;
+};
 #pragma pack(pop)
 
 HeaterState currentState;
 
 FVEData currentFveData;
+DiagData currentDiagData;
 BelData belData;
 
 uint8_t temperatureDataToCompare[5];
@@ -133,6 +144,7 @@ uint32_t relayOffMillis = 0;
 uint32_t currentMillis = 0;
 uint32_t temperatureReadMillis = 0;
 uint32_t lastMQTTSendMillis = 0;
+uint32_t lastDiagSendMillis = 0;
 uint32_t lastRegulatorMeasurement  = 0;
 long interval = 0;
 long position = SERVOMAXRANGE;
@@ -168,7 +180,15 @@ bool checkHeaterStartTimeout = false;
 unsigned long lastWasteGasReadMillis = 0;
 unsigned short wasteGasGradientCount = 0;
 
+int freeRam() {
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int)&v - (__brkval == 0 ? (int)&__heap_start : (int)__brkval);
+}
+
 void setup() {
+  currentDiagData.resetReason = MCUSR;
+  MCUSR = 0;
   Serial.begin(57600);
   //AT+UART_DEF=57600,8,1,0,0
   Serial1.begin(57600);
@@ -221,6 +241,10 @@ void MQTTConnect()
   if(wifiStatus == WL_DISCONNECTED || wifiStatus == WL_IDLE_STATUS)
   {
     wifiConnected = drv.Connect(WifiSSID, WifiPassword);
+    if(currentDiagData.wifiReconn < 65535)
+    {
+      currentDiagData.wifiReconn++;
+    }
     mqttLastConnectionTry = currentMillis;
   }
   if(wifiConnected)
@@ -229,6 +253,10 @@ void MQTTConnect()
     if(!isConnected)
     {
       Serial.println("Connect");
+      if(currentDiagData.mqttReconn < 65535)
+      {
+        currentDiagData.mqttReconn++;
+      }
       if(client.Connect(mqttConnectData))
       {
         Serial.println("Subscribes");
@@ -639,7 +667,10 @@ void checkHeating()
 void readInputTemperature()
 {
   uint8_t newInputTemperature = currentState.inputTemp;
-  tempSensors.GetAcumulatorOutputTemperature(&newInputTemperature);
+  if(!tempSensors.GetAcumulatorOutputTemperature(&newInputTemperature))
+  {
+    currentDiagData.sensorErr |= (1 << 1);
+  }
   if(currentState.inputTemp != newInputTemperature)
   { 
     lcd.SetInputTemperature(newInputTemperature);
@@ -650,7 +681,10 @@ void readInputTemperature()
 void readCurrentHeatingTemperature()
 {
   uint8_t newCelsius = currentState.currentTemp;
-  tempSensors.GetCurrentHeatingTemperature(&newCelsius);
+  if(!tempSensors.GetCurrentHeatingTemperature(&newCelsius))
+  {
+    currentDiagData.sensorErr |= (1 << 0);
+  }
   if(newCelsius > 100)
   {
     return;
@@ -663,6 +697,18 @@ void readCurrentHeatingTemperature()
 }
 
 unsigned int sendIndex = 0;
+void sendDiag()
+{
+  currentDiagData.uptime = currentMillis / 60000;
+  currentDiagData.freeRam = freeRam();
+  uint8_t buffer[sizeof(DiagData)];
+  memcpy(buffer, &currentDiagData, sizeof(DiagData));
+  client.Publish(TOPIC_DIAG, buffer, sizeof(DiagData), false);
+  currentDiagData.loopMaxMs = 0;
+  currentDiagData.sensorErr = 0;
+  Serial.println("Diag publish");
+}
+
 void sendToHomeAssistant()
 {
   if(currentMillis - lastMQTTSendMillis > 30000)
@@ -683,15 +729,48 @@ void sendToHomeAssistant()
   }
 }
 
+/*
+  sensorErr bitová mapa:
+  bit 0 - currentHeating
+  bit 1 - acumulatorOutput (inputTemp)
+  bit 2 - acumulator1
+  bit 3 - acumulator2
+  bit 4 - acumulator3
+  bit 5 - acumulator4
+  bit 6 - returnHeating
+  bit 7 - heater
+  bit 8 - boiler
+*/
 void sendHeaterToHomeAssistant()
 {
-  tempSensors.GetAcumulator1Temperature(&currentState.acum1);
-  tempSensors.GetAcumulator2Temperature(&currentState.acum2);
-  tempSensors.GetAcumulator3Temperature(&currentState.acum3);
-  tempSensors.GetAcumulator4Temperature(&currentState.acum4);
-  tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp);
-  tempSensors.GetHeaterTemperature(&currentState.heaterTemp);
-  tempSensors.GetBoilerTemperature(&currentState.boilerTemp);
+  if(!tempSensors.GetAcumulator1Temperature(&currentState.acum1))
+  {
+    currentDiagData.sensorErr |= (1 << 2);
+  }
+  if(!tempSensors.GetAcumulator2Temperature(&currentState.acum2))
+  {
+    currentDiagData.sensorErr |= (1 << 3);
+  }
+  if(!tempSensors.GetAcumulator3Temperature(&currentState.acum3))
+  {
+    currentDiagData.sensorErr |= (1 << 4);
+  }
+  if(!tempSensors.GetAcumulator4Temperature(&currentState.acum4))
+  {
+    currentDiagData.sensorErr |= (1 << 5);
+  }
+  if(!tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp))
+  {
+    currentDiagData.sensorErr |= (1 << 6);
+  }
+  if(!tempSensors.GetHeaterTemperature(&currentState.heaterTemp))
+  {
+    currentDiagData.sensorErr |= (1 << 7);
+  }
+  if(!tempSensors.GetBoilerTemperature(&currentState.boilerTemp))
+  {
+    currentDiagData.sensorErr |= (1 << 8);
+  }
   convertToHalfByte((int)slowAverageWasteGasTemperature, currentState.wasteGasTemp, 4);
   uint8_t buffer[sizeof(HeaterState)];
   memcpy(buffer, &currentState, sizeof(HeaterState));
@@ -770,8 +849,9 @@ void CheckHeaterStartTimeout()
 }
 
 void loop() {
-  wdt_reset();
   currentMillis = millis();
+  wdt_reset();
+  
   if(!client.Loop())
   {
     MQTTConnect();
@@ -800,6 +880,11 @@ void loop() {
   SetHeatingTemperatureByOverheating();
   lcd.Print();
   sendToHomeAssistant();
+  if(currentMillis - lastDiagSendMillis > 300000)
+  {
+    sendDiag();
+    lastDiagSendMillis = currentMillis;
+  }
   if(!relayOn)
   {
     checkHeating();    
@@ -837,5 +922,10 @@ void loop() {
       setRelay(newInterval < 0? - 1 : 1);
     }
     lastRegulatorMeasurement  = currentMillis;
+  }
+  uint16_t loopElapsed = millis() - currentMillis;
+  if(loopElapsed > currentDiagData.loopMaxMs)
+  {
+    currentDiagData.loopMaxMs = loopElapsed;
   }
 }

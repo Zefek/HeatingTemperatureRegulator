@@ -32,71 +32,60 @@ void TemperatureSensors::RequestTemperatures()
   this->sensors->requestTemperatures();
 }
 
-void TemperatureSensors::GetAcumulator1Temperature(uint8_t* temperature)
+bool TemperatureSensors::GetAcumulator1Temperature(uint8_t* temperature)
 {
-  GetTemperature(acumulatorFirst, temperature);
+  return GetTemperature(acumulatorFirst, temperature);
 }
 
-void TemperatureSensors::GetAcumulator2Temperature(uint8_t* temperature)
+bool TemperatureSensors::GetAcumulator2Temperature(uint8_t* temperature)
 {
-  GetTemperature(acumulatorSecond, temperature);
+  return GetTemperature(acumulatorSecond, temperature);
 }
 
-void TemperatureSensors::GetAcumulator3Temperature(uint8_t* temperature)
+bool TemperatureSensors::GetAcumulator3Temperature(uint8_t* temperature)
 {
-  GetTemperature(acumulatorThird, temperature);
+  return GetTemperature(acumulatorThird, temperature);
 }
 
-void TemperatureSensors::GetAcumulator4Temperature(uint8_t* temperature)
+bool TemperatureSensors::GetAcumulator4Temperature(uint8_t* temperature)
 {
-  GetTemperature(acumulatorFour, temperature);
+  return GetTemperature(acumulatorFour, temperature);
 }
 
-void TemperatureSensors::GetAcumulatorOutputTemperature(uint8_t* temperature)
+bool TemperatureSensors::GetAcumulatorOutputTemperature(uint8_t* temperature)
 {
-  GetTemperature(acumulatorOutput, temperature);
+  return GetTemperature(acumulatorOutput, temperature);
 }
 
-void TemperatureSensors::GetReturnHeatingTemperature(uint8_t* temperature)
+bool TemperatureSensors::GetReturnHeatingTemperature(uint8_t* temperature)
 {
-  GetTemperature(returnHeating, temperature);
+  return GetTemperature(returnHeating, temperature);
 }
 
-void TemperatureSensors::GetHeaterTemperature(uint8_t* temperature)
+bool TemperatureSensors::GetHeaterTemperature(uint8_t* temperature)
 {
-  GetTemperature(heaterTemperature, temperature);
+  return GetTemperature(heaterTemperature, temperature);
 }
 
-void TemperatureSensors::GetBoilerTemperature(uint8_t* temperature)
+bool TemperatureSensors::GetBoilerTemperature(uint8_t* temperature)
 {
-  GetTemperature(boiler, temperature);
+  return GetTemperature(boiler, temperature);
 }
 
-void TemperatureSensors::GetCurrentHeatingTemperature(uint8_t* temperature)
+bool TemperatureSensors::GetCurrentHeatingTemperature(uint8_t* temperature)
 {
-  GetTemperature(currentHeating, temperature);
+  return GetTemperature(currentHeating, temperature);
 }
 
-void TemperatureSensors::GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature)
+bool TemperatureSensors::GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature)
 {
   float temp = sensors->getTempC(deviceAddress);
-  if(temp == -127)
+  if(temp < 0 || temp > 120)
   {
-    return;
-  }
-  if(temp == -254)
-  {
-    return;
-  }
-  if(temp == -253)
-  {
-    return;
-  }
-  if(temp == -252)
-  {
-    return;
+    return false;
   }
   *temperature = (uint8_t)round(temp);
+  return true;
 }
 
 void TemperatureSensors::PrintAddress(DeviceAddress deviceAddress)
