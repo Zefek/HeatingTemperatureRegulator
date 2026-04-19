@@ -16,6 +16,7 @@
 #define TOPIC_HEATERSTATE "TOPIC_HEATERSTATE"
 #define TOPIC_FVE "TOPIC_FVE"
 #define TOPIC_FVE_STATE "TOPIC_FVE_STATE"
+#define TOPIC_DIAG "TOPIC_DIAG"
 
 #define MAXTEMPDIFFERENCE 0
 #define PCONST            0  //P konstanta pro PID

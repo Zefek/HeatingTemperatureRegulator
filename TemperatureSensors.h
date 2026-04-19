@@ -9,18 +9,18 @@ class TemperatureSensors
     OneWire* oneWire;
     DallasTemperature* sensors;
     void PrintAddress(DeviceAddress deviceAddress);
-    void GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature);
+    bool GetTemperature(DeviceAddress deviceAddress, uint8_t* temperature);
   public:
     TemperatureSensors(uint8_t busPin);
-    void GetAcumulator1Temperature(uint8_t* temperature);
-    void GetAcumulator2Temperature(uint8_t* temperature);
-    void GetAcumulator3Temperature(uint8_t* temperature);
-    void GetAcumulator4Temperature(uint8_t* temperature);
-    void GetAcumulatorOutputTemperature(uint8_t* temperature);
-    void GetReturnHeatingTemperature(uint8_t* temperature);
-    void GetCurrentHeatingTemperature(uint8_t* temperature);
-    void GetHeaterTemperature(uint8_t* temperature);
-    void GetBoilerTemperature(uint8_t* temperature);
+    bool GetAcumulator1Temperature(uint8_t* temperature);
+    bool GetAcumulator2Temperature(uint8_t* temperature);
+    bool GetAcumulator3Temperature(uint8_t* temperature);
+    bool GetAcumulator4Temperature(uint8_t* temperature);
+    bool GetAcumulatorOutputTemperature(uint8_t* temperature);
+    bool GetReturnHeatingTemperature(uint8_t* temperature);
+    bool GetCurrentHeatingTemperature(uint8_t* temperature);
+    bool GetHeaterTemperature(uint8_t* temperature);
+    bool GetBoilerTemperature(uint8_t* temperature);
     void Init();
     void RequestTemperatures();
 };
