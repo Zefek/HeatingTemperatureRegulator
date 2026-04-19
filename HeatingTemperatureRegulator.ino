@@ -106,13 +106,13 @@ struct FVEData
 };
 
 struct DiagData {
-  uint8_t uptime[4];
-  uint8_t freeRam[4];
-  uint8_t wifiReconn[4];
-  uint8_t mqttReconn[4];
-  uint8_t sensorErr;
-  uint8_t resetReason;
-  uint8_t loopMaxMs[4];
+  uint32_t uptime;
+  uint16_t freeRam;
+  uint16_t wifiReconn;
+  uint16_t mqttReconn;
+  uint16_t sensorErr;
+  uint8_t  resetReason;
+  uint16_t loopMaxMs;
 };
 #pragma pack(pop)
 
@@ -179,9 +179,6 @@ unsigned long heaterStartTimeoutBegin = 0;
 bool checkHeaterStartTimeout = false;
 unsigned long lastWasteGasReadMillis = 0;
 unsigned short wasteGasGradientCount = 0;
-uint16_t wifiReconnectCount = 0;
-uint16_t mqttReconnectCount = 0;
-uint32_t maxLoopTime = 0;
 
 int freeRam() {
   extern int __heap_start, *__brkval;
@@ -244,9 +241,9 @@ void MQTTConnect()
   if(wifiStatus == WL_DISCONNECTED || wifiStatus == WL_IDLE_STATUS)
   {
     wifiConnected = drv.Connect(WifiSSID, WifiPassword);
-    if(wifiReconnectCount < 65535) 
+    if(currentDiagData.wifiReconn < 65535)
     {
-      wifiReconnectCount++;
+      currentDiagData.wifiReconn++;
     }
     mqttLastConnectionTry = currentMillis;
   }
@@ -256,9 +253,9 @@ void MQTTConnect()
     if(!isConnected)
     {
       Serial.println("Connect");
-      if(mqttReconnectCount < 65535) 
+      if(currentDiagData.mqttReconn < 65535)
       {
-        mqttReconnectCount++;
+        currentDiagData.mqttReconn++;
       }
       if(client.Connect(mqttConnectData))
       {
@@ -702,15 +699,12 @@ void readCurrentHeatingTemperature()
 unsigned int sendIndex = 0;
 void sendDiag()
 {
-  convertToHalfByte((int)(currentMillis / 60000), currentDiagData.uptime, 4);
-  convertToHalfByte(freeRam(), currentDiagData.freeRam, 4);
-  convertToHalfByte(wifiReconnectCount, currentDiagData.wifiReconn, 4);
-  convertToHalfByte(mqttReconnectCount, currentDiagData.mqttReconn, 4);
-  convertToHalfByte((int)maxLoopTime, currentDiagData.loopMaxMs, 4);
+  currentDiagData.uptime = currentMillis / 60000;
+  currentDiagData.freeRam = freeRam();
   uint8_t buffer[sizeof(DiagData)];
   memcpy(buffer, &currentDiagData, sizeof(DiagData));
   client.Publish(TOPIC_DIAG, buffer, sizeof(DiagData), false);
-  maxLoopTime = 0;
+  currentDiagData.loopMaxMs = 0;
   currentDiagData.sensorErr = 0;
   Serial.println("Diag publish");
 }
@@ -745,7 +739,7 @@ void sendToHomeAssistant()
   bit 5 - acumulator4
   bit 6 - returnHeating
   bit 7 - heater
-  Boiler se nevejde do 8 bitů, ale je nejméně kritický.
+  bit 8 - boiler
 */
 void sendHeaterToHomeAssistant()
 {
@@ -773,7 +767,10 @@ void sendHeaterToHomeAssistant()
   {
     currentDiagData.sensorErr |= (1 << 7);
   }
-  tempSensors.GetBoilerTemperature(&currentState.boilerTemp);
+  if(!tempSensors.GetBoilerTemperature(&currentState.boilerTemp))
+  {
+    currentDiagData.sensorErr |= (1 << 8);
+  }
   convertToHalfByte((int)slowAverageWasteGasTemperature, currentState.wasteGasTemp, 4);
   uint8_t buffer[sizeof(HeaterState)];
   memcpy(buffer, &currentState, sizeof(HeaterState));
@@ -926,6 +923,9 @@ void loop() {
     }
     lastRegulatorMeasurement  = currentMillis;
   }
-  uint32_t loopElapsed = millis() - currentMillis;
-  if(loopElapsed > maxLoopTime) maxLoopTime = loopElapsed;
+  uint16_t loopElapsed = millis() - currentMillis;
+  if(loopElapsed > currentDiagData.loopMaxMs)
+  {
+    currentDiagData.loopMaxMs = loopElapsed;
+  }
 }
