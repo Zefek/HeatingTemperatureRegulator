@@ -68,7 +68,15 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "deploy.ps1 failed (exit $LASTEXITCODE)" }
           }
           finally {
-              
+              # Always clean up - whether the try block succeeded, threw, or was interrupted
+              if (Test-Path $secretsDir) {
+                  Remove-Item $secretsDir -Recurse -Force -ErrorAction SilentlyContinue
+              }
+              if ($mounted) {
+                  & net.exe use 'Z:' /delete /yes | Out-Null
+              }
+              # cleanup is best-effort; do not fail the step on a stale exit code
+              $global:LASTEXITCODE = 0
           }
 
       - name: Compile Arduino project
