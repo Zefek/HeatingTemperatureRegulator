@@ -1,11 +1,3 @@
-#define WifiSSID "WifiSSID"
-#define WifiPassword "WifiPassword"
-#define MQTTUsername "MQTTUserName"
-
-#define MQTTPassword "MQTTPassword"
-
-#define MQTTHost "MQTTHost"
-
 #define TOPIC_THERMOSTAT "TOPIC_THERMOSTAT"
 #define TOPIC_MODE "TOPIC_MODE"
 #define TOPIC_HEATERSELECTOR "TOPIC_HEATERSELECTOR"
