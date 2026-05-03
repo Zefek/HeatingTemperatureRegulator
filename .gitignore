@@ -1,4 +1,5 @@
 
 config.h
 sensorsconfig.h
+secret.h
 upload.cmd
