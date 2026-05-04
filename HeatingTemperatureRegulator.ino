@@ -3,6 +3,7 @@
 #include "display.h"
 #include <TX07K-TXC.h>
 #include "config.h"
+#include "secret.h"
 #include <avr/wdt.h>
 #include "TemperatureSensors.h"
 #include "BelWattmeter.h"

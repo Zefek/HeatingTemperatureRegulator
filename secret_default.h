@@ -1,0 +1,5 @@
+#define WifiSSID "WifiSSID"
+#define WifiPassword "WifiPassword"
+#define MQTTUsername "MQTTUserName"
+#define MQTTPassword "MQTTPassword"
+#define MQTTHost "MQTTHost"

@@ -35,14 +35,49 @@ jobs:
           & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install "TX07K-TXC@1.0.4"
           & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" lib install "MQTTESP8266@5.1.2"
 
-      - name: Set configs (Windows)
+      - name: Generate configs from secrets repo
         shell: powershell
-        run: |
-          $env:CONFIG_H | Out-File -Encoding ascii config.h
-          $env:SENSORSCONFIG_H | Out-File -Encoding ascii sensorsconfig.h
         env:
-          CONFIG_H: ${{ secrets.CONFIG_H }}
-          SENSORSCONFIG_H: ${{ secrets.SENSORSCONFIG_H }}
+          SECRETS_SHARE_PATH: ${{ secrets.SECRETS_SHARE_PATH }}
+          SECRETS_SHARE_USER: ${{ secrets.SECRETS_SHARE_USER }}
+          SECRETS_SHARE_PASS: ${{ secrets.SECRETS_SHARE_PASS }}
+          SECRETS_REPO_NAME:  ${{ secrets.SECRETS_REPO_NAME }}
+          DEVICE_NAME:        HeaterTemperatureRegulator
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $secretsDir = Join-Path $env:RUNNER_TEMP 'secrets'
+          $mounted = $false
+
+          try {
+              # Mount SMB share with read-only credentials
+              & net.exe use 'Z:' $env:SECRETS_SHARE_PATH /user:$env:SECRETS_SHARE_USER $env:SECRETS_SHARE_PASS | Out-Null
+              if ($LASTEXITCODE -ne 0) { throw "Failed to mount SMB share (exit $LASTEXITCODE)" }
+              $mounted = $true
+
+              # Clone Configuration repo from the share
+              if (Test-Path $secretsDir) { Remove-Item $secretsDir -Recurse -Force }
+              $repoSource = if ($env:SECRETS_REPO_NAME) { "Z:\$env:SECRETS_REPO_NAME" } else { 'Z:\' }
+              git clone --depth=1 $repoSource $secretsDir
+              if ($LASTEXITCODE -ne 0) { throw "git clone failed (exit $LASTEXITCODE)" }
+
+              # Run per-device deploy script
+              $deployScript = Join-Path $secretsDir "$env:DEVICE_NAME\deploy.ps1"
+              if (-not (Test-Path $deployScript)) { throw "deploy.ps1 not found at $deployScript" }
+
+              & $deployScript -OutputDir $env:GITHUB_WORKSPACE
+              if ($LASTEXITCODE -ne 0) { throw "deploy.ps1 failed (exit $LASTEXITCODE)" }
+          }
+          finally {
+              # Always clean up - whether the try block succeeded, threw, or was interrupted
+              if (Test-Path $secretsDir) {
+                  Remove-Item $secretsDir -Recurse -Force -ErrorAction SilentlyContinue
+              }
+              if ($mounted) {
+                  & net.exe use 'Z:' /delete /yes | Out-Null
+              }
+              # cleanup is best-effort; do not fail the step on a stale exit code
+              $global:LASTEXITCODE = 0
+          }
 
       - name: Compile Arduino project
         run: |
