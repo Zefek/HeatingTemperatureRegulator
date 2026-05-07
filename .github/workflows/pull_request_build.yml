@@ -22,6 +22,7 @@ jobs:
       - name: Initialize Arduino CLI
         run: |
           arduino-cli config init
+          arduino-cli config set library.enable_unsafe_install true
           arduino-cli core update-index
 
       - name: Install required board core
