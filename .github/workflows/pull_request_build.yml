@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          submodules: true
 
       - name: Install Arduino CLI
         uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02  # v2.0.0
@@ -22,20 +24,7 @@ jobs:
       - name: Initialize Arduino CLI
         run: |
           arduino-cli config init
-          arduino-cli config set library.enable_unsafe_install true
           arduino-cli core update-index
-
-      - name: Install required board core
-        run: arduino-cli core install arduino:avr@1.8.7  # např. pro Arduino Uno
-      
-      - name: Install libraries
-        run: |
-          arduino-cli lib install "Ds1302@1.1.0"
-          arduino-cli lib install "LiquidCrystal_I2C@2.0.0"
-          arduino-cli lib install "DallasTemperature@4.0.6"
-          arduino-cli lib install "OneWire@2.3.8"
-          arduino-cli lib install --git-url https://github.com/Zefek/MQTTESP8266.git#6.0
-          arduino-cli lib install "TX07K-TXC@1.0.4"
 
       - name: Set configs
         run: |
@@ -50,4 +39,4 @@ jobs:
 
       - name: Compile Arduino project
         run: |
-          arduino-cli compile --fqbn arduino:avr:mega ./
+          arduino-cli compile --profile Heater_Mega ./
