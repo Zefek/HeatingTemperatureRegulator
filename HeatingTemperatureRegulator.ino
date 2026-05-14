@@ -115,6 +115,7 @@ struct DiagData {
   uint16_t sensorErr;
   uint8_t  resetReason;
   uint16_t loopMaxMs;
+  int8_t   rssi;
 };
 #pragma pack(pop)
 
@@ -713,6 +714,7 @@ void sendDiag()
 {
   currentDiagData.uptime = currentMillis / 60000;
   currentDiagData.freeRam = freeRam();
+  currentDiagData.rssi = drv.GetRssi();
   uint8_t buffer[sizeof(DiagData)];
   memcpy(buffer, &currentDiagData, sizeof(DiagData));
   client.Publish(TOPIC_DIAG, buffer, sizeof(DiagData), false);
