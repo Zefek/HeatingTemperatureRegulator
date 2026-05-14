@@ -27,6 +27,7 @@
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton);
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
+void OnBusy(uint8_t count);
 void computeRequiredTemperature();
 void DataTimeout();
 
@@ -180,6 +181,7 @@ unsigned long heaterStartTimeoutBegin = 0;
 bool checkHeaterStartTimeout = false;
 unsigned long lastWasteGasReadMillis = 0;
 unsigned short wasteGasGradientCount = 0;
+bool closedRequired = false;
 
 int freeRam() {
   extern int __heap_start, *__brkval;
@@ -204,6 +206,7 @@ void setup() {
   tempSensors.Init();
   drv.Init(64);
   drv.DataTimeout = DataTimeout;
+  drv.OnBusy = OnBusy;
   delay(1000);
   pinMode(MOREHEATINGRELAYPIN, OUTPUT);
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
@@ -303,7 +306,15 @@ bool IsLeapYear(int year)
 
 void DataTimeout()
 {
-  drv.Close();
+  closedRequired = true;
+}
+
+void OnBusy(uint8_t count)
+{
+  if(count > 10)
+  {
+    closedRequired = true;
+  }
 }
 
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
@@ -852,7 +863,11 @@ void CheckHeaterStartTimeout()
 void loop() {
   currentMillis = millis();
   wdt_reset();
-  
+  if(closedRequired)
+  {
+    drv.Close();
+    closedRequired = false;
+  }
   if(!client.Loop())
   {
     MQTTConnect();

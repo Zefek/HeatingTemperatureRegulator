@@ -1,0 +1,8 @@
+[submodule "MQTTESP8266"]
+	path = MQTTESP8266
+	url = https://github.com/Zefek/MQTTESP8266.git
+	branch = 6.0
+[submodule "TX07K-TXC"]
+	path = TX07K-TXC
+	url = https://github.com/Zefek/TX07K-TXC.git
+	branch = main
