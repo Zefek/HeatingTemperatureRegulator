@@ -1,7 +1,16 @@
 name: Build HeatingRegulator on Environment
 
 on:
-  deployment:
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: choice
+        options:
+          - Home
+      serial_port:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -10,7 +19,7 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, iot]
-    environment: Home
+    environment: ${{ inputs.environment }}
 
     steps:
       - name: Checkout repository
@@ -68,15 +77,15 @@ jobs:
 
       - name: Compile Arduino project
         run: |
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" compile --profile Heater_Mega ./ --output-dir build
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" compile ./ --output-dir build
 
       - name: Upload firmware to Arduino
         env:
-          SERIAL_PORT: ${{ github.event.deployment.payload.serial_port }}
+          SERIAL_PORT: ${{ github.event.inputs.serial_port }}
         run: |
           if ($env:SERIAL_PORT -notmatch '^COM\d+$') {
             Write-Error "Invalid serial port format: $env:SERIAL_PORT"
             exit 1
           }
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" upload --profile Heater_Mega --port $env:SERIAL_PORT --input-dir build
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" upload --port $env:SERIAL_PORT --input-dir build
 
