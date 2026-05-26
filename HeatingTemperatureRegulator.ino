@@ -421,7 +421,7 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
     outsideTemperature = temperature;
     if (memcmp(rawData, temperatureDataToCompare, 5) != 0)
     {
-      client.Publish(TOPIC_OUTSIDETEMPERATURE, rawData, 5, true);
+      client.Publish(TOPIC_OUTSIDETEMPERATURE, rawData, 5);
       memcpy(temperatureDataToCompare, rawData, 5);
     }
     if(!outsideTemperatureWasSet)
