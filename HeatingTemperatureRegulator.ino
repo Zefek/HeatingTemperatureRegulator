@@ -41,19 +41,6 @@ void convertToHalfByte(int value, uint8_t* result, uint8_t length)
   }
 }
 
-void convert_to_utf8(const uint8_t* input, uint8_t length, char* output) {
-    int j = 0;
-    for(int i = 0; i < length; i++)
-    {
-      uint8_t first = input[i] >> 4;
-      uint8_t second = input[i] & 0x0F;
-      output[j++] = first<10? (char)('0'+first):(char)('7'+first);
-      output[j++] = second<10? (char)('0'+second):(char)('7'+second);   
-    }
-
-    output[j] = '\0'; // Null-terminate the UTF-8 string
-}
-
 /*
 0 - currentTemperature
 1 - inputTemperature
@@ -434,8 +421,7 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
     outsideTemperature = temperature;
     if (memcmp(rawData, temperatureDataToCompare, 5) != 0)
     {
-      convert_to_utf8(rawData, 5, utf8Buffer);
-      client.Publish(TOPIC_OUTSIDETEMPERATURE, (const char*) utf8Buffer, true);
+      client.Publish(TOPIC_OUTSIDETEMPERATURE, rawData, 5);
       memcpy(temperatureDataToCompare, rawData, 5);
     }
     if(!outsideTemperatureWasSet)
