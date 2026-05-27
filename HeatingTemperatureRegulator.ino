@@ -112,7 +112,6 @@ FVEData currentFveData;
 DiagData currentDiagData;
 BelData belData;
 
-uint8_t temperatureDataToCompare[5];
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
@@ -419,11 +418,7 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   if(channel == 1 && sensrId == sensorId)
   {
     outsideTemperature = temperature;
-    if (memcmp(rawData, temperatureDataToCompare, 5) != 0)
-    {
-      client.Publish(TOPIC_OUTSIDETEMPERATURE, rawData, 5);
-      memcpy(temperatureDataToCompare, rawData, 5);
-    }
+    client.Publish(TOPIC_OUTSIDETEMPERATURE, rawData, 5);
     if(!outsideTemperatureWasSet)
     {
       outsideTemperatureAverage = temperature;
