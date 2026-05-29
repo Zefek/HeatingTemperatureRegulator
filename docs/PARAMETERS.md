@@ -20,7 +20,7 @@
 | `TOPIC_CURRENTDATETIEM` | IN | Synchronizace času ve formátu `YYYY-MM-DD HH:MM:SS` |
 | `TOPIC_THERMOSTATSETCHANGED` | IN | Požadovaná vnitřní teplota z termostatu (float) |
 | `TOPIC_OUTSIDETEMPERATURE` | OUT | Surová data z venkovního čidla (hex-encoded 5 bajtů) |
-| `TOPIC_HEATERSTATE` | OUT | Binární paket `HeaterState` (22 bajtů) se stavem regulátoru |
+| `TOPIC_HEATERSTATE` | OUT | Binární paket `HeaterState` (23 bajtů) se stavem regulátoru |
 | `TOPIC_FVE` | OUT | **Volitelný** — binární paket `FVEData` (16 bajtů) s daty z wattmetru |
 | `TOPIC_FVE_STATE` | OUT | **Volitelný** — stav FVE (`Online` / `Offline`) |
 
