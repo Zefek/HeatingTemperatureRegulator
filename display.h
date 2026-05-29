@@ -51,7 +51,7 @@ class Display
 
     void print2digits(uint8_t number);
     void printTime();
-    void printOutTemperature(bool blink);
+    void printOutTemperature();
     void Blink();
     void PrintMode(uint8_t mode, bool blink);
 
@@ -69,4 +69,5 @@ class Display
     void SetThermostat(bool thermostat);
     void EndInitialize();
     void SetHeater(bool heaterOn);
+    void SetOutTemperatureNotSet();
 };

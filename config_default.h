@@ -19,6 +19,12 @@
 #define OVERHEATINGTEMPERATURE 0
 #define MININPUTTEMPERATURE 0
 #define MAXIMALSERVOSTEP 3
+#define SERVOMAXRANGE               70000 //Časový interval pohybu serva mezi krajními hodnotami
+#define SERVO1PC                    700L //Jedno procento z intervalu serva
+#define MINSERVOINTERVAL            700    //Minimální interval pro aktivaci serva
+#define OUTSIDEAVGTAU               180.0   //Časová konstanta průměru venkovní teploty [min] (≈ původní 1/180)
+#define OUTSIDETEMPERATURETIMEOUT   600000UL //Po této době bez dat ze snímače [ms] => na displeji --.-
+
 
 #define HeaterOn(ht, wgt)  false
 #define HeaterOff(ht, wgt)  false

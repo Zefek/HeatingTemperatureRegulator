@@ -33,12 +33,12 @@
       }
     }
     
-    void Display::printOutTemperature(bool blink)
+    void Display::printOutTemperature()
     {
-      if(blink)
+      lcd->setCursor(10, 1);
+      if(!outsideTemperatureWasSet)
       {
-        lcd->setCursor(10, 1);
-        lcd->print("      ");
+        lcd->print(" --.-");
       }
       else
       {
@@ -58,8 +58,8 @@
           lcd->print(" ");
         }
         lcd->print(outTemperature, 1);
-        lcd->write((byte)1);
       }
+      lcd->write((byte)1);
     }
 
     Display::Display(uint8_t lcd_Addr,uint8_t lcd_cols,uint8_t lcd_rows)
@@ -102,15 +102,25 @@
     
     void Display::SetOutTemperature(double outTemperature)
     {
+      outsideTemperatureWasSet = true;
       if(this->outTemperature != outTemperature || forcePrint)
       {
         this->outTemperature = outTemperature;
         if(!initializing)
         {
-          printOutTemperature(false);
+          printOutTemperature();
         }
       }
-      outsideTemperatureWasSet = true;
+    }
+
+    void Display::SetOutTemperatureNotSet()
+    {
+      if(!outsideTemperatureWasSet)
+      {
+        return;
+      }
+      outsideTemperatureWasSet = false;
+      printOutTemperature();
     }
 
     void Display::SetWasteGasTemperature(int wasteGasTemperature)
@@ -246,10 +256,6 @@
           lcd->write((byte)3);
         }
       }
-      if(!outsideTemperatureWasSet)
-      {
-        printOutTemperature(shouldBlink);
-      }
       if(mode == 2 && !thermostat)
       {
         PrintMode(mode, shouldBlink);
@@ -282,7 +288,7 @@
       forcePrint = true;
       lcd->clear();
       SetRequiredTemperature(this->requiredTemperature);
-      SetOutTemperature(this->outTemperature);
+      printOutTemperature();
       SetWasteGasTemperature(this->wasteGasTemperature);
       SetInputTemperature(this->inputTemperature);
       SetCurrentHeatingTemperature(this->currentHeatingTemperature);

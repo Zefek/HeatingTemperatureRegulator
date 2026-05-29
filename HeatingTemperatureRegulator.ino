@@ -18,10 +18,6 @@
 #define HEATINGPUMPRELAYPIN         10
 #define HEATERWASTEGASTHERMOSTATPIN 11
 #define ONEWIREBUSPIN                7
-#define SERVOMAXRANGE               70000 //Časový interval pohybu serva mezi krajními hodnotami
-#define SERVO1PC                    700L //Jedno procento z intervalu serva
-#define MINSERVOINTERVAL            700    //Minimální interval pro aktivaci serva
-#define AVGOUTTEMPVALUES            180     //Počet hodnot pro výpočet průměrné venkovní teploty (počet minut)
 #define FASTAVGALPHA                0.3
 #define SLOWAVGALPHA                0.035
 
@@ -64,6 +60,7 @@ void convertToHalfByte(int value, uint8_t* result, uint8_t length)
 19 - averageOutsideTemperature B2
 20 - averageOutsideTemperature B3 (MSB)
 21 - heatermode
+22 - flame
 */
 #pragma pack(push, 1)
 struct HeaterState {
@@ -141,7 +138,6 @@ bool relayOn = false;
 int8_t direction = 0;
 double outsideTemperature = 14;
 double outsideTemperatureAverage = 0;
-int sensor = 1;
 bool thermostat = false;
 uint8_t sensrId = 0;
 int lastCurrentTemp = 0;
@@ -155,6 +151,7 @@ unsigned long mqttConnectionTimeout = 0;
 unsigned long mqttLastConnectionTry = 0;
 bool shouldHeatingBeOnByTemperature = false;
 bool outsideTemperatureWasSet = false;
+unsigned long lastOutsideTemperatureMillis = 0;
 bool fveOnlineSent = false;
 bool fveOfflineSent = false;
 unsigned long fastReadMillis = 0;
@@ -212,7 +209,6 @@ void setup() {
   ComputeWasteGasTemperature();
   ComputeSlowWasteGasTemperature();
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
-  ComputeOutsideTemperatureAverage();
   lcd.EndInitialize();
   convertToHalfByte(999, currentState.outsideAvgTemp, 4);
   resetServo = true;
@@ -419,11 +415,32 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
   {
     outsideTemperature = temperature;
     client.Publish(TOPIC_OUTSIDETEMPERATURE, rawData, 5);
+
+    //Časově vážený průměr pro ekviterm. Váha čerstvého čtení roste s dobou od
+    //posledního příjmu => krátké nepravidelné mezery i výpadek se zohlední samy.
+    double oldAverage = outsideTemperatureAverage;
     if(!outsideTemperatureWasSet)
     {
-      outsideTemperatureAverage = temperature;
+      outsideTemperatureAverage = temperature; //první čtení = nasazení
     }
+    else
+    {
+      double elapsedMin = (currentMillis - lastOutsideTemperatureMillis) / 60000.0;
+      if(elapsedMin > 0)
+      {
+        double alpha = 1.0 - exp(-elapsedMin / OUTSIDEAVGTAU);
+        outsideTemperatureAverage = constrain(alpha * temperature + (1 - alpha) * outsideTemperatureAverage, -50, 50);
+      }
+    }
+    if(oldAverage != outsideTemperatureAverage)
+    {
+      int T = (int)(outsideTemperatureAverage * 10);
+      convertToHalfByte(T, currentState.outsideAvgTemp, 4);
+    }
+
+    lastOutsideTemperatureMillis = currentMillis;
     outsideTemperatureWasSet = true;
+
     lcd.SetOutTemperature(temperature);
   }
 }
@@ -455,22 +472,6 @@ void computeRequiredTemperature()
   {
     lcd.SetRequiredTemperature(valueToSet);
     currentState.setTemp = valueToSet;
-  }
-}
-
-void ComputeOutsideTemperatureAverage()
-{
-  if(!outsideTemperatureWasSet)
-  {
-    return;
-  }
-  double oldAverage = outsideTemperatureAverage;
-  double alpha = 1.0 / 180.0;
-  outsideTemperatureAverage = constrain(alpha * outsideTemperature + (1 - alpha) * outsideTemperatureAverage, -50, 50);
-  if(oldAverage != outsideTemperatureAverage)
-  {
-    int T = (int)(outsideTemperatureAverage * 10);
-    convertToHalfByte(T, currentState.outsideAvgTemp, 4);
   }
 }
 
@@ -710,7 +711,6 @@ void sendToHomeAssistant()
   {
     if(sendIndex == 0)
     {
-      ComputeOutsideTemperatureAverage();
       computeRequiredTemperature();
       sendHeaterToHomeAssistant();
       sendIndex = 1;
@@ -861,6 +861,10 @@ void loop() {
     resetServo = false;
   }
   outsideTemperatureSensor.CheckTemperature();
+  if(outsideTemperatureWasSet && currentMillis - lastOutsideTemperatureMillis > OUTSIDETEMPERATURETIMEOUT)
+  {
+    lcd.SetOutTemperatureNotSet();
+  }
   belWattmeter.Loop();
   if(currentMillis - fastReadMillis > 50)
   {
