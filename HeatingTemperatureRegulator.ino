@@ -10,6 +10,9 @@
 #include <MQTTClient.h>
 #include <EspDrv.h>
 
+#ifndef FW_VERSION
+#define FW_VERSION 0
+#endif
 #define I2C_ADDR                    0x27
 #define LCD_COLUMNS                 16
 #define LCD_LINES                    2
