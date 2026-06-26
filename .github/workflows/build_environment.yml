@@ -77,7 +77,7 @@ jobs:
 
       - name: Compile Arduino project
         run: |
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" compile ./ --output-dir build
+          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" compile ./ --output-dir build --build-property "compiler.cpp.extra_flags=-DFW_VERSION=${{ github.run_number }}"
 
       - name: Upload firmware to Arduino
         env:
