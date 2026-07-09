@@ -18,40 +18,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: [self-hosted, iot]
-    environment: ${{ inputs.environment }}
-    env:
-      REPO: ${{ vars.REPO }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-        with:
-          submodules: true
-
-      - name: Initialize Arduino CLI
-        run: |
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" core update-index
-
-      - uses: zefek/GithubActions/Actions/deployConfig@main
-        with:
-          repo:   ${{ env.REPO }}
-          auth:   ${{ secrets.REPO_TOKEN }}
-          dest:   ${{ runner.temp }}\secrets
-          device: HeaterTemperatureRegulator
-          outdir: ${{ env.GITHUB_WORKSPACE }}
-
-      - name: Compile Arduino project
-        run: |
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" compile ./ --output-dir build --build-property "compiler.cpp.extra_flags=-DFW_VERSION=${{ github.run_number }}"
-
-      - name: Upload firmware to Arduino
-        env:
-          SERIAL_PORT: ${{ github.event.inputs.serial_port }}
-        run: |
-          if ($env:SERIAL_PORT -notmatch '^COM\d+$') {
-            Write-Error "Invalid serial port format: $env:SERIAL_PORT"
-            exit 1
-          }
-          & "$Env:RUNNER_TOOL_CACHE\arduino-cli\arduino-cli.exe" --config-file "$Env:RUNNER_TOOL_CACHE\arduino-cli\config.yaml" upload --port $env:SERIAL_PORT --input-dir build
-
+    uses: Zefek/GithubActions/.github/workflows/arduino-build-deploy.yml@main
+    with:
+      environment: ${{ inputs.environment }}
+      serial_port: ${{ inputs.serial_port }}
+      device_name: HeaterTemperatureRegulator
+      source_dir: "."
+    secrets: inherit
