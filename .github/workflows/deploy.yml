@@ -1,4 +1,4 @@
-name: Build HeatingRegulator on Environment
+name: Deploy HeatingRegulator
 
 on:
   workflow_dispatch:
