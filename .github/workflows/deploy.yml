@@ -9,7 +9,7 @@ on:
         options:
           - Home
       serial_port:
-        required: true
+        required: false
         type: string
 
 permissions:
