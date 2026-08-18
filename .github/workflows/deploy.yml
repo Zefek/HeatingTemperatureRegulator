@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   build:
-    uses: Zefek/GithubActions/.github/workflows/arduino-build-deploy.yml@v1
+    uses: Zefek/GithubActions/.github/workflows/arduino-build-deploy.yml@8e0333bd7deb714e7950d84629ee855731e37672
     with:
       environment: ${{ inputs.environment }}
       serial_port: ${{ inputs.serial_port }}
