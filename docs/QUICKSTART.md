@@ -141,7 +141,6 @@ Nastavte topicy odpovídající vaší konfiguraci HomeAssistant. Příklad:
 #define TOPIC_THERMOSTATSETCHANGED "home/heating/setpoint"
 #define TOPIC_OUTSIDETEMPERATURE "home/heating/outside"
 #define TOPIC_HEATERSTATE "home/heating/state"
-#define TOPIC_FVE "home/fve/data"
 ```
 
 ### Parametry regulace
@@ -170,7 +169,7 @@ Subscribes
 
 1. Nainstalujte [MQTT Explorer](https://mqtt-explorer.com/)
 2. Připojte se na váš MQTT broker
-3. Ověřte, že se každých 30 s objevují zprávy na topicích `TOPIC_HEATERSTATE` a `TOPIC_FVE`
+3. Ověřte, že se každou minutu objevují zprávy na topicu `TOPIC_HEATERSTATE`
 
 ## 7. Nastavení MQTT brokeru
 

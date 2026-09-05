@@ -137,8 +137,6 @@ Pro zprovoznění regulátoru je potřeba soubor config.h
 #define TOPIC_OUTSIDETEMPERATURE "TOPIC_OUTSIDETEMPERATURE"
 //MQTT Topic pro odeslání stavu regulátoru
 #define TOPIC_HEATERSTATE "TOPIC_HEATERSTATE"
-//MQTT Topic pro odeslání stavu BEL (FVE)
-#define TOPIC_FVE "TOPIC_FVE"
 //Definuje maximální rozdíl mezi požadovanou teplotou a teplotou vratky pro udržení teplotního spádu
 #define MAXTEMPDIFFERENCE 15
 //Definuje konstantu P pro PD regulaci
