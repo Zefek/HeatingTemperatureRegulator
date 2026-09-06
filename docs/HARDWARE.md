@@ -24,7 +24,6 @@
 | Rezistor 10 kΩ | 1 | Dělič napětí pro PT1000 |
 | Rezistor 4.7 kΩ | 1 | Pull-up pro OneWire sběrnici DS18B20 |
 | Deska 4× SSR relé | 1 | Ovládání ventilu (2×), čerpadla, termostatu spalin |
-| BEL wattmetr | 1 | **Volitelný** — monitoring FVE přes Serial2 @ 9600 baud |
 
 ## Pinout
 
@@ -44,7 +43,6 @@
 | SDA (20) | I/O | I2C data | LCD 16×2 |
 | SCL (21) | I/O | I2C clock | LCD 16×2 |
 | TX1/RX1 (18/19) | I/O | Serial1 @ 57600 | ESP-01 (WiFi) |
-| TX2/RX2 (16/17) | I/O | Serial2 @ 9600 | BEL wattmetr (FVE) — volitelný |
 
 > Všechna SSR relé jsou spínaná aktivní úrovní LOW (`digitalWrite(pin, LOW)` = sepnuto).
 

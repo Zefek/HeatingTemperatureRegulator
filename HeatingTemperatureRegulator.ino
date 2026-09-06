@@ -6,7 +6,6 @@
 #include "secret.h"
 #include <avr/wdt.h>
 #include "TemperatureSensors.h"
-#include "BelWattmeter.h"
 #include <MQTTClient.h>
 #include <EspDrv.h>
 
@@ -86,14 +85,6 @@ struct HeaterState {
   uint8_t flame;
 };
 
-struct FVEData
-{
-  uint8_t voltage[4];
-  uint8_t current[4];
-  uint8_t power[4];
-  uint8_t consumption[4];
-};
-
 struct DiagData {
   uint32_t uptime;
   uint16_t freeRam;
@@ -108,9 +99,7 @@ struct DiagData {
 
 HeaterState currentState;
 
-FVEData currentFveData;
 DiagData currentDiagData;
-BelData belData;
 
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
@@ -149,14 +138,11 @@ unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
 double averageWasteGasTemperature = 0;
 double slowAverageWasteGasTemperature = 0;
-BelWattmeter belWattmeter;
 unsigned long mqttConnectionTimeout = 0;
 unsigned long mqttLastConnectionTry = 0;
 bool shouldHeatingBeOnByTemperature = false;
 bool outsideTemperatureWasSet = false;
 unsigned long lastOutsideTemperatureMillis = 0;
-bool fveOnlineSent = false;
-bool fveOfflineSent = false;
 unsigned long fastReadMillis = 0;
 bool resetServo = false;
 double dFiltered = 0;
@@ -182,7 +168,6 @@ void setup() {
   Serial.begin(57600);
   //AT+UART_DEF=57600,8,1,0,0
   Serial1.begin(57600);
-  Serial2.begin(9600);
   sensrId = EEPROM.read(0);
   rtc.init();
   lcd.Init(&rtc);
@@ -694,7 +679,6 @@ void readCurrentHeatingTemperature()
   }
 }
 
-unsigned int sendIndex = 0;
 void sendDiag()
 {
   currentDiagData.uptime = currentMillis / 60000;
@@ -710,19 +694,10 @@ void sendDiag()
 
 void sendToHomeAssistant()
 {
-  if(currentMillis - lastMQTTSendMillis > 30000)
+  if(currentMillis - lastMQTTSendMillis > 60000)
   {
-    if(sendIndex == 0)
-    {
-      computeRequiredTemperature();
-      sendHeaterToHomeAssistant();
-      sendIndex = 1;
-    }
-    else
-    {
-      sendFVEToHomeAssistant();
-      sendIndex = 0;
-    }
+    computeRequiredTemperature();
+    sendHeaterToHomeAssistant();
     lastMQTTSendMillis = currentMillis;
   }
 }
@@ -774,39 +749,6 @@ void sendHeaterToHomeAssistant()
   memcpy(buffer, &currentState, sizeof(HeaterState));
   client.Publish(TOPIC_HEATERSTATE, buffer, sizeof(HeaterState), true);
   Serial.println("Heater publish");
-}
-
-void sendFVEToHomeAssistant()
-{
-  BelData data = belWattmeter.GetBelData();
-  if(data.voltage > 0 || data.current > 0 || data.consumption > 0 || data.power > 0)
-  {
-    //IsOnline
-    if(!fveOnlineSent)
-    {
-      client.Publish(TOPIC_FVE_STATE, "Online", true);
-      fveOnlineSent = true;
-      fveOfflineSent = false;
-    }
-    convertToHalfByte(data.voltage, currentFveData.voltage, 4);
-    convertToHalfByte(data.current, currentFveData.current, 4);
-    convertToHalfByte(data.consumption, currentFveData.consumption, 4);
-    convertToHalfByte(data.power, currentFveData.power, 4);
-    uint8_t buffer[sizeof(FVEData)];
-    memcpy(buffer, &currentFveData, sizeof(FVEData));
-    client.Publish(TOPIC_FVE, (char*)buffer, sizeof(buffer), true);
-    Serial.println("FVE publish");
-  }
-  else
-  {
-    if(!fveOfflineSent)
-    {
-      client.Publish(TOPIC_FVE_STATE, "Offline", true);
-      fveOnlineSent = false;
-      fveOfflineSent = true;
-    }
-  }
-  belWattmeter.Reset();
 }
 
 void SetHeatingTemperatureByOverheating()
@@ -868,7 +810,6 @@ void loop() {
   {
     lcd.SetOutTemperatureNotSet();
   }
-  belWattmeter.Loop();
   if(currentMillis - fastReadMillis > 50)
   {
     ComputeWasteGasTemperature();

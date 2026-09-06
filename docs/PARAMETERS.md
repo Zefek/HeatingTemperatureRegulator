@@ -21,8 +21,6 @@
 | `TOPIC_THERMOSTATSETCHANGED` | IN | Požadovaná vnitřní teplota z termostatu (float) |
 | `TOPIC_OUTSIDETEMPERATURE` | OUT | Surová data z venkovního čidla (hex-encoded 5 bajtů) |
 | `TOPIC_HEATERSTATE` | OUT | Binární paket `HeaterState` (23 bajtů) se stavem regulátoru |
-| `TOPIC_FVE` | OUT | **Volitelný** — binární paket `FVEData` (16 bajtů) s daty z wattmetru |
-| `TOPIC_FVE_STATE` | OUT | **Volitelný** — stav FVE (`Online` / `Offline`) |
 
 > U všech IN topiců je důležité nastavit MQTT **retain**, aby se po restartu regulátoru obnovil původní stav.
 
