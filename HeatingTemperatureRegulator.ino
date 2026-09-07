@@ -7,7 +7,7 @@
 #include <avr/wdt.h>
 #include "TemperatureSensors.h"
 #include <MQTTClient.h>
-#include <EspDrv.h>
+#include <EspDrvV4.h>
 
 #ifndef FW_VERSION
 #define FW_VERSION 0
@@ -104,9 +104,9 @@ DiagData currentDiagData;
 Display lcd(I2C_ADDR, LCD_COLUMNS, LCD_LINES);
 Ds1302 rtc(4, 5, 6);
 TX07KTXC outsideTemperatureSensor(2, 3, OutsideTemperatureChanged);
-MQTTConnectData mqttConnectData = { MQTTHost, 1883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false, 0x0 }; 
+MQTTConnectData mqttConnectData = { MQTTHost, 8883, "Heater", MQTTUsername, MQTTPassword, "", 0, false, "", false, 60 }; 
 
-EspDrv drv(&Serial1);
+EspDrvV4 drv(&Serial1);
 MQTTClient client(&drv, MQTTMessageReceive);
 
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
@@ -179,6 +179,8 @@ void setup() {
   drv.Init(64);
   drv.DataTimeout = DataTimeout;
   drv.OnBusy = OnBusy;
+  drv.SetSecure(true, 2);
+  drv.SetTimeSource(NTPSERVERIP);
   delay(1000);
   pinMode(MOREHEATINGRELAYPIN, OUTPUT);
   pinMode(LESSHEATINGRELAYPIN, OUTPUT);
