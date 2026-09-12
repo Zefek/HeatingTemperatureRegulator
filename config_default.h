@@ -26,6 +26,7 @@
 
 #define HeaterOn(ht, wgt)  false
 #define HeaterOff(ht, wgt)  false
+#define NTPSERVERIP "0.pool.ntp.org"
 
 double equithermalCurveZeroPoint = 0;
 double insideTemperature = 0.0;
