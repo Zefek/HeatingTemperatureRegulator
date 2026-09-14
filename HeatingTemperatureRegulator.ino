@@ -27,6 +27,7 @@ void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sens
 void MQTTMessageReceive(char* topic, uint8_t* payload, uint16_t length);
 void OnBusy(uint8_t count);
 void computeRequiredTemperature();
+void readNextHeaterSensor();
 void DataTimeout();
 
 void convertToHalfByte(int value, uint8_t* result, uint8_t length)
@@ -122,6 +123,7 @@ uint32_t relayOffMillis = 0;
 uint32_t currentMillis = 0;
 uint32_t temperatureReadMillis = 0;
 uint32_t lastMQTTSendMillis = 0;
+uint8_t heaterReadStep = 0;
 uint32_t lastDiagSendMillis = 0;
 uint32_t lastRegulatorMeasurement  = 0;
 long interval = 0;
@@ -696,12 +698,23 @@ void sendDiag()
 
 void sendToHomeAssistant()
 {
-  if(currentMillis - lastMQTTSendMillis > 60000)
+  if(heaterReadStep == 0)
   {
-    computeRequiredTemperature();
-    sendHeaterToHomeAssistant();
-    lastMQTTSendMillis = currentMillis;
+    if(currentMillis - lastMQTTSendMillis > 60000)
+    {
+      computeRequiredTemperature();
+      heaterReadStep = 1;
+    }
+    return;
   }
+  if(heaterReadStep <= 7)
+  {
+    readNextHeaterSensor();
+    return;
+  }
+  sendHeaterToHomeAssistant();
+  lastMQTTSendMillis = currentMillis;
+  heaterReadStep = 0;
 }
 
 /*
@@ -716,36 +729,58 @@ void sendToHomeAssistant()
   bit 7 - heater
   bit 8 - boiler
 */
+void readNextHeaterSensor()
+{
+  switch(heaterReadStep)
+  {
+    case 1:
+      if(!tempSensors.GetAcumulator1Temperature(&currentState.acum1))
+      {
+        currentDiagData.sensorErr |= (1 << 2);
+      }
+    break;
+    case 2:
+      if(!tempSensors.GetAcumulator2Temperature(&currentState.acum2))
+      {
+        currentDiagData.sensorErr |= (1 << 3);
+      }
+    break;
+    case 3:
+      if(!tempSensors.GetAcumulator3Temperature(&currentState.acum3))
+      {
+        currentDiagData.sensorErr |= (1 << 4);
+      }
+    break;
+    case 4:
+      if(!tempSensors.GetAcumulator4Temperature(&currentState.acum4))
+      {
+        currentDiagData.sensorErr |= (1 << 5);
+      }
+    break;
+    case 5:
+      if(!tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp))
+      {
+        currentDiagData.sensorErr |= (1 << 6);
+      }
+    break;
+    case 6:
+      if(!tempSensors.GetHeaterTemperature(&currentState.heaterTemp))
+      {
+        currentDiagData.sensorErr |= (1 << 7);
+      }
+    break;
+    case 7:
+      if(!tempSensors.GetBoilerTemperature(&currentState.boilerTemp))
+      {
+        currentDiagData.sensorErr |= (1 << 8);
+      }
+    break;
+  }
+  heaterReadStep++;
+}
+
 void sendHeaterToHomeAssistant()
 {
-  if(!tempSensors.GetAcumulator1Temperature(&currentState.acum1))
-  {
-    currentDiagData.sensorErr |= (1 << 2);
-  }
-  if(!tempSensors.GetAcumulator2Temperature(&currentState.acum2))
-  {
-    currentDiagData.sensorErr |= (1 << 3);
-  }
-  if(!tempSensors.GetAcumulator3Temperature(&currentState.acum3))
-  {
-    currentDiagData.sensorErr |= (1 << 4);
-  }
-  if(!tempSensors.GetAcumulator4Temperature(&currentState.acum4))
-  {
-    currentDiagData.sensorErr |= (1 << 5);
-  }
-  if(!tempSensors.GetReturnHeatingTemperature(&currentState.returnTemp))
-  {
-    currentDiagData.sensorErr |= (1 << 6);
-  }
-  if(!tempSensors.GetHeaterTemperature(&currentState.heaterTemp))
-  {
-    currentDiagData.sensorErr |= (1 << 7);
-  }
-  if(!tempSensors.GetBoilerTemperature(&currentState.boilerTemp))
-  {
-    currentDiagData.sensorErr |= (1 << 8);
-  }
   convertToHalfByte((int)slowAverageWasteGasTemperature, currentState.wasteGasTemp, 4);
   uint8_t buffer[sizeof(HeaterState)];
   memcpy(buffer, &currentState, sizeof(HeaterState));
