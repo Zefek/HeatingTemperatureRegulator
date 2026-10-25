@@ -8,6 +8,7 @@
 #include "TemperatureSensors.h"
 #include <MQTTClient.h>
 #include <EspDrvV4.h>
+#include "mode.h"
 
 #ifndef FW_VERSION
 #define FW_VERSION 0
@@ -112,12 +113,6 @@ MQTTClient client(&drv, MQTTMessageReceive);
 
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
 
-enum HeatingMode : uint8_t {
-  OFF = 0,
-  AUTOMATIC = 1,
-  THERMOSTAT = 2
-};
-
 uint32_t relayOnMillis = 0;
 uint32_t relayOffMillis = 0;
 uint32_t currentMillis = 0;
@@ -135,9 +130,10 @@ double outsideTemperatureAverage = 0;
 bool thermostat = false;
 uint8_t sensrId = 0;
 int lastCurrentTemp = 0;
-HeatingMode previousMode = AUTOMATIC;
+ModeArbiter modeArbiter;
+bool mqttConnected = false;
 unsigned char utf8Buffer[32];
-unsigned char mqttReceivedData[24];
+char mqttReceivedData[24];
 double averageWasteGasTemperature = 0;
 double slowAverageWasteGasTemperature = 0;
 unsigned long mqttConnectionTimeout = 0;
@@ -193,7 +189,8 @@ void setup() {
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
   digitalWrite(HEATERWASTEGASTHERMOSTATPIN, HIGH);
-  currentState.mode = AUTOMATIC; 
+  ModeInit(modeArbiter, SUPERVISORLOSTDELAY);
+  currentState.mode = modeArbiter.requested;
   lcd.SetMode(currentState.mode);
   computeRequiredTemperature();
   readCurrentHeatingTemperature();
@@ -244,13 +241,12 @@ void MQTTConnect()
         client.Subscribe(TOPIC_ZEROPOINT, 1);
         client.Subscribe(TOPIC_THERMOSTATSETCHANGED, 1);
         client.Subscribe(TOPIC_CURRENTDATETIEM, 1);
+        client.Subscribe(TOPIC_SUPERVISORSTATUS, 1);
         mqttLastConnectionTry = currentMillis;
         mqttConnectionTimeout = 0;
       }
       else
       {
-        currentState.mode = AUTOMATIC;
-        lcd.SetMode(currentState.mode);
         equithermalCurveZeroPoint = 40;
         exponent = 0.76923;
         insideTemperature = 22.5;
@@ -294,11 +290,19 @@ void OnBusy(uint8_t count)
 
 void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
 {
+  if(length >= sizeof(mqttReceivedData))
+  {
+    length = sizeof(mqttReceivedData) - 1;
+  }
   for(int i = 0; i<length; i++)
   {
     mqttReceivedData[i] = (char)payload[i];
   }
   mqttReceivedData[length] = '\0';
+  if(strcmp(topic, TOPIC_SUPERVISORSTATUS) == 0)
+  {
+    ModeSupervisorStatus(modeArbiter, mqttReceivedData);
+  }
   //Termostat on/off
   if(strcmp(topic, TOPIC_THERMOSTAT) == 0)
   {
@@ -315,20 +319,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
   if(strcmp(topic, TOPIC_MODE) == 0)
   {
-    shouldHeatingBeOnByTemperature = false;
-    if(strcmp(mqttReceivedData, "Off") == 0)
-    {        
-      currentState.mode = OFF;
-    }
-    else if(strcmp(mqttReceivedData, "Automatic") == 0)
-    {
-      currentState.mode = AUTOMATIC;
-    }
-    else if (strcmp(mqttReceivedData, "Thermostat") == 0)
-    {
-      currentState.mode = THERMOSTAT;
-    }
-    lcd.SetMode(currentState.mode);
+    ModeRequest(modeArbiter, mqttReceivedData);
   }
   //Bod na nule v topné křivce
   if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
@@ -388,6 +379,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   {
     insideTemperature = atof(mqttReceivedData);
   }
+  resolveMode();
 }
 
 void OutsideTemperatureChanged(double temperature, uint8_t channel, uint8_t sensorId, uint8_t* rawData, bool transmitedByButton)
@@ -616,14 +608,21 @@ void HeatingOff()
   currentState.heatingActive = 0;
 }
 
+void resolveMode()
+{
+  HeatingMode mode = ModeResolve(modeArbiter, mqttConnected, shouldHeatingBeOnByTemperature, currentMillis);
+  if(mode != currentState.mode)
+  {
+    currentState.mode = mode;
+    lcd.SetMode(currentState.mode);
+  }
+}
+
 void checkHeating()
 {
   if(!shouldHeatingBeOnByTemperature && HeaterOn(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
-    previousMode = currentState.mode;
-    currentState.mode = AUTOMATIC;
     shouldHeatingBeOnByTemperature = true;
-    lcd.SetMode(currentState.mode);
     setWasteGasThermostat(true);
     lcd.SetHeater(true);
     checkHeaterStartTimeout = false;
@@ -631,13 +630,12 @@ void checkHeating()
   }
   if(shouldHeatingBeOnByTemperature && HeaterOff(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
-    currentState.mode = previousMode;
     shouldHeatingBeOnByTemperature = false;
-    lcd.SetMode(currentState.mode);
     setWasteGasThermostat(false);
     lcd.SetHeater(false);
     currentState.flame = 0;
   }
+  resolveMode();
   if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
     HeatingOff();
@@ -833,7 +831,8 @@ void loop() {
     drv.Close();
     closedRequired = false;
   }
-  if(!client.Loop())
+  mqttConnected = client.Loop();
+  if(!mqttConnected)
   {
     MQTTConnect();
   }
