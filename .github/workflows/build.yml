@@ -18,6 +18,11 @@ jobs:
         with:
           submodules: true
 
+      - name: Unit tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -o mode_test tests/mode_test.cpp mode.cpp
+          ./mode_test
+
       - name: Install Arduino CLI
         uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02  # v2.0.0
 

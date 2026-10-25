@@ -8,6 +8,7 @@
 #include "TemperatureSensors.h"
 #include <MQTTClient.h>
 #include <EspDrvV4.h>
+#include "mode.h"
 
 #ifndef FW_VERSION
 #define FW_VERSION 0
@@ -112,12 +113,6 @@ MQTTClient client(&drv, MQTTMessageReceive);
 
 TemperatureSensors tempSensors(ONEWIREBUSPIN);
 
-enum HeatingMode : uint8_t {
-  OFF = 0,
-  AUTOMATIC = 1,
-  THERMOSTAT = 2
-};
-
 uint32_t relayOnMillis = 0;
 uint32_t relayOffMillis = 0;
 uint32_t currentMillis = 0;
@@ -135,11 +130,8 @@ double outsideTemperatureAverage = 0;
 bool thermostat = false;
 uint8_t sensrId = 0;
 int lastCurrentTemp = 0;
-HeatingMode requestedMode = AUTOMATIC;
+ModeArbiter modeArbiter;
 bool mqttConnected = false;
-bool supervisorOnline = false;
-bool supervisorSeen = false;
-uint32_t lastSupervisorOkMillis = 0;
 unsigned char utf8Buffer[32];
 unsigned char mqttReceivedData[24];
 double averageWasteGasTemperature = 0;
@@ -197,7 +189,8 @@ void setup() {
   digitalWrite(LESSHEATINGRELAYPIN, HIGH);
   digitalWrite(HEATINGPUMPRELAYPIN, HIGH);
   digitalWrite(HEATERWASTEGASTHERMOSTATPIN, HIGH);
-  currentState.mode = requestedMode;
+  ModeInit(modeArbiter, SUPERVISORLOSTDELAY);
+  currentState.mode = modeArbiter.requested;
   lcd.SetMode(currentState.mode);
   computeRequiredTemperature();
   readCurrentHeatingTemperature();
@@ -308,14 +301,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   mqttReceivedData[length] = '\0';
   if(strcmp(topic, TOPIC_SUPERVISORSTATUS) == 0)
   {
-    if(strcmp(mqttReceivedData, "online") == 0)
-    {
-      supervisorOnline = true;
-    }
-    else if(strcmp(mqttReceivedData, "offline") == 0)
-    {
-      supervisorOnline = false;
-    }
+    ModeSupervisorStatus(modeArbiter, (const char*)mqttReceivedData);
   }
   //Termostat on/off
   if(strcmp(topic, TOPIC_THERMOSTAT) == 0)
@@ -333,18 +319,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
   if(strcmp(topic, TOPIC_MODE) == 0)
   {
-    if(strcmp(mqttReceivedData, "Off") == 0)
-    {
-      requestedMode = OFF;
-    }
-    else if(strcmp(mqttReceivedData, "Automatic") == 0)
-    {
-      requestedMode = AUTOMATIC;
-    }
-    else if (strcmp(mqttReceivedData, "Thermostat") == 0)
-    {
-      requestedMode = THERMOSTAT;
-    }
+    ModeRequest(modeArbiter, (const char*)mqttReceivedData);
   }
   //Bod na nule v topné křivce
   if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
@@ -635,21 +610,7 @@ void HeatingOff()
 
 void resolveMode()
 {
-  if(mqttConnected && supervisorOnline)
-  {
-    lastSupervisorOkMillis = currentMillis;
-    supervisorSeen = true;
-  }
-  HeatingMode mode = requestedMode;
-  bool supervisorLost = !supervisorSeen || currentMillis - lastSupervisorOkMillis > SUPERVISORLOSTDELAY;
-  if(mode == THERMOSTAT && supervisorLost)
-  {
-    mode = AUTOMATIC;
-  }
-  if(shouldHeatingBeOnByTemperature)
-  {
-    mode = AUTOMATIC;
-  }
+  HeatingMode mode = ModeResolve(modeArbiter, mqttConnected, shouldHeatingBeOnByTemperature, currentMillis);
   if(mode != currentState.mode)
   {
     currentState.mode = mode;
