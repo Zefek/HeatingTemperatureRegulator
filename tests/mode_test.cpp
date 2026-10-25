@@ -1,9 +1,9 @@
 #include "../mode.h"
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <chrono>
 #include <format>
+#include <fstream>
+#include <iostream>
 #include <source_location>
 #include <string>
 #include <vector>
@@ -34,7 +34,7 @@ struct Checker
     {
       failures++;
       std::string message = std::format("{}: {}, expected {} (tests/mode_test.cpp:{})", name, actual, expected, location.line());
-      printf("FAIL %s\n", message.c_str());
+      std::cout << "FAIL " << message << '\n';
       if(!results.empty())
       {
         results.back().failures.push_back(message);
@@ -42,7 +42,8 @@ struct Checker
     }
   }
 
-  void Run(const char* name, void (*test)(Checker&))
+  template<typename Test>
+  void Run(const char* name, Test test)
   {
     results.emplace_back();
     results.back().name = name;
@@ -77,10 +78,22 @@ std::string TrxDuration(std::chrono::microseconds duration)
 
 std::string Timestamp(std::chrono::system_clock::time_point point)
 {
-  time_t seconds = std::chrono::system_clock::to_time_t(point);
-  char buffer[32];
-  strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", gmtime(&seconds));
-  return buffer;
+  auto day = std::chrono::floor<std::chrono::days>(point);
+  std::chrono::year_month_day date{day};
+  std::chrono::hh_mm_ss time{std::chrono::floor<std::chrono::seconds>(point - day)};
+  return std::format("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+    static_cast<int>(date.year()), static_cast<unsigned>(date.month()), static_cast<unsigned>(date.day()),
+    time.hours().count(), time.minutes().count(), time.seconds().count());
+}
+
+size_t PassedCount(const Checker& c)
+{
+  size_t passed = 0;
+  for(const TestResult& r : c.results)
+  {
+    passed += r.failures.empty() ? 1 : 0;
+  }
+  return passed;
 }
 
 std::string Guid(int kind, size_t index)
@@ -90,34 +103,30 @@ std::string Guid(int kind, size_t index)
 
 void WriteTrx(const Checker& c, const char* path)
 {
-  FILE* f = fopen(path, "w");
-  if(f == nullptr)
+  std::ofstream f(path);
+  if(!f)
   {
-    printf("Cannot write %s\n", path);
+    std::cout << "Cannot write " << path << '\n';
     return;
   }
-  const char* testType = "13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b";
-  const char* testList = "8c84fa94-04c1-424b-9868-57a2d4851a1d";
-  std::string start = Timestamp(c.started);
-  std::string finish = Timestamp(std::chrono::system_clock::now());
-  size_t passed = 0;
-  for(const TestResult& r : c.results)
-  {
-    passed += r.failures.empty() ? 1 : 0;
-  }
-  fprintf(f, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
-  fprintf(f, "<TestRun id=\"%s\" name=\"mode_test\" xmlns=\"http://microsoft.com/schemas/VisualStudio/TeamTest/2010\">\n", Guid(0, 0).c_str());
-  fprintf(f, "  <Times creation=\"%s\" queuing=\"%s\" start=\"%s\" finish=\"%s\" />\n", start.c_str(), start.c_str(), start.c_str(), finish.c_str());
-  fprintf(f, "  <Results>\n");
-  for(size_t i = 0; i < c.results.size(); i++)
+  const std::string testType = "13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b";
+  const std::string testList = "8c84fa94-04c1-424b-9868-57a2d4851a1d";
+  const std::string start = Timestamp(c.started);
+  const std::string finish = Timestamp(std::chrono::system_clock::now());
+  const size_t total = c.results.size();
+  const size_t passed = PassedCount(c);
+  f << R"(<?xml version="1.0" encoding="utf-8"?>)" << '\n';
+  f << std::format(R"(<TestRun id="{}" name="mode_test" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">)", Guid(0, 0)) << '\n';
+  f << std::format(R"(  <Times creation="{0}" queuing="{0}" start="{0}" finish="{1}" />)", start, finish) << '\n';
+  f << "  <Results>\n";
+  for(size_t i = 0; i < total; i++)
   {
     const TestResult& r = c.results[i];
-    fprintf(f, "    <UnitTestResult executionId=\"%s\" testId=\"%s\" testName=\"%s\" computerName=\"ci\" duration=\"%s\" startTime=\"%s\" endTime=\"%s\" testType=\"%s\" outcome=\"%s\" testListId=\"%s\">",
-      Guid(2, i).c_str(), Guid(1, i).c_str(), XmlEscape(r.name).c_str(), TrxDuration(r.duration).c_str(), start.c_str(), finish.c_str(),
-      testType, r.failures.empty() ? "Passed" : "Failed", testList);
+    f << std::format(R"(    <UnitTestResult executionId="{}" testId="{}" testName="{}" computerName="ci" duration="{}" startTime="{}" endTime="{}" testType="{}" outcome="{}" testListId="{}">)",
+      Guid(2, i), Guid(1, i), XmlEscape(r.name), TrxDuration(r.duration), start, finish, testType, r.failures.empty() ? "Passed" : "Failed", testList);
     if(r.failures.empty())
     {
-      fprintf(f, "</UnitTestResult>\n");
+      f << "</UnitTestResult>\n";
       continue;
     }
     std::string message;
@@ -125,54 +134,52 @@ void WriteTrx(const Checker& c, const char* path)
     {
       message += failure + "\n";
     }
-    fprintf(f, "\n      <Output><ErrorInfo><Message>%s</Message></ErrorInfo></Output>\n    </UnitTestResult>\n", XmlEscape(message).c_str());
+    f << std::format("\n      <Output><ErrorInfo><Message>{}</Message></ErrorInfo></Output>\n    </UnitTestResult>\n", XmlEscape(message));
   }
-  fprintf(f, "  </Results>\n  <TestDefinitions>\n");
-  for(size_t i = 0; i < c.results.size(); i++)
+  f << "  </Results>\n  <TestDefinitions>\n";
+  for(size_t i = 0; i < total; i++)
   {
     const std::string name = XmlEscape(c.results[i].name);
-    fprintf(f, "    <UnitTest name=\"%s\" storage=\"mode_test\" id=\"%s\"><Execution id=\"%s\" /><TestMethod codeBase=\"mode_test\" adapterTypeName=\"executor://mode_test\" className=\"ModeArbiter\" name=\"%s\" /></UnitTest>\n",
-      name.c_str(), Guid(1, i).c_str(), Guid(2, i).c_str(), name.c_str());
+    f << std::format(R"(    <UnitTest name="{0}" storage="mode_test" id="{1}"><Execution id="{2}" /><TestMethod codeBase="mode_test" adapterTypeName="executor://mode_test" className="ModeArbiter" name="{0}" /></UnitTest>)",
+      name, Guid(1, i), Guid(2, i)) << '\n';
   }
-  fprintf(f, "  </TestDefinitions>\n  <TestEntries>\n");
-  for(size_t i = 0; i < c.results.size(); i++)
+  f << "  </TestDefinitions>\n  <TestEntries>\n";
+  for(size_t i = 0; i < total; i++)
   {
-    fprintf(f, "    <TestEntry testId=\"%s\" executionId=\"%s\" testListId=\"%s\" />\n", Guid(1, i).c_str(), Guid(2, i).c_str(), testList);
+    f << std::format(R"(    <TestEntry testId="{}" executionId="{}" testListId="{}" />)", Guid(1, i), Guid(2, i), testList) << '\n';
   }
-  fprintf(f, "  </TestEntries>\n  <TestLists>\n    <TestList name=\"Results Not in a List\" id=\"%s\" />\n  </TestLists>\n", testList);
-  fprintf(f, "  <ResultSummary outcome=\"%s\">\n    <Counters total=\"%zu\" executed=\"%zu\" passed=\"%zu\" failed=\"%zu\" />\n  </ResultSummary>\n</TestRun>\n",
-    passed == c.results.size() ? "Completed" : "Failed", c.results.size(), c.results.size(), passed, c.results.size() - passed);
-  fclose(f);
+  f << "  </TestEntries>\n  <TestLists>\n";
+  f << std::format(R"(    <TestList name="Results Not in a List" id="{}" />)", testList) << '\n';
+  f << "  </TestLists>\n";
+  f << std::format(R"(  <ResultSummary outcome="{}">)", passed == total ? "Completed" : "Failed") << '\n';
+  f << std::format(R"(    <Counters total="{0}" executed="{0}" passed="{1}" failed="{2}" />)", total, passed, total - passed) << '\n';
+  f << "  </ResultSummary>\n</TestRun>\n";
 }
 
 void WriteSummary(const Checker& c, const char* path)
 {
-  FILE* f = fopen(path, "a");
-  if(f == nullptr)
+  std::ofstream f(path, std::ios::app);
+  if(!f)
   {
     return;
   }
-  size_t passed = 0;
+  const size_t total = c.results.size();
+  const size_t passed = PassedCount(c);
+  f << std::format("## Unit testy: mode\n\n{} {} / {} testů prošlo, {} kontrol, {} chyb\n\n",
+    passed == total ? "✅" : "❌", passed, total, c.checks, c.failures);
+  f << "| Test | Výsledek | Kontrol | Čas |\n|---|---|---|---|\n";
   for(const TestResult& r : c.results)
   {
-    passed += r.failures.empty() ? 1 : 0;
-  }
-  fprintf(f, "## Unit testy: mode\n\n%s %zu / %zu testů prošlo, %d kontrol, %d chyb\n\n",
-    passed == c.results.size() ? "✅" : "❌", passed, c.results.size(), c.checks, c.failures);
-  fprintf(f, "| Test | Výsledek | Kontrol | Čas |\n|---|---|---|---|\n");
-  for(const TestResult& r : c.results)
-  {
-    fprintf(f, "| %s | %s | %d | %.3f ms |\n", r.name.c_str(), r.failures.empty() ? "✅" : "❌", r.checks, r.duration.count() / 1000.0);
+    f << std::format("| {} | {} | {} | {:.3f} ms |\n", r.name, r.failures.empty() ? "✅" : "❌", r.checks, r.duration.count() / 1000.0);
   }
   for(const TestResult& r : c.results)
   {
     for(const std::string& failure : r.failures)
     {
-      fprintf(f, "\n- ❌ **%s**: `%s`", r.name.c_str(), failure.c_str());
+      f << std::format("\n- ❌ **{}**: `{}`", r.name, failure);
     }
   }
-  fprintf(f, "\n");
-  fclose(f);
+  f << '\n';
 }
 
 const uint32_t Delay = 120000UL;
@@ -326,7 +333,7 @@ int main(int argc, char** argv)
   c.Run("UnknownPayloadsAreIgnored", UnknownPayloadsAreIgnored);
   c.Run("MillisOverflow", MillisOverflow);
   c.Run("LongOnlineRefreshesContinuously", LongOnlineRefreshesContinuously);
-  printf("%zu tests, %d checks, %d failures\n", c.results.size(), c.checks, c.failures);
+  std::cout << std::format("{} tests, {} checks, {} failures\n", c.results.size(), c.checks, c.failures);
   for(int i = 1; i + 1 < argc; i++)
   {
     if(std::string(argv[i]) == "--trx")
