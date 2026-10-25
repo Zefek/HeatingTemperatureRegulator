@@ -49,8 +49,7 @@ HeatingMode ModeResolve(ModeArbiter& arbiter, bool mqttConnected, bool burning, 
   {
     return AUTOMATIC;
   }
-  bool supervisorLost = !arbiter.supervisorSeen || (uint32_t)(now - arbiter.lastSupervisorOk) > arbiter.lostDelay;
-  if(arbiter.requested == THERMOSTAT && supervisorLost)
+  if(arbiter.requested == THERMOSTAT && (!arbiter.supervisorSeen || now - arbiter.lastSupervisorOk > arbiter.lostDelay))
   {
     return AUTOMATIC;
   }
