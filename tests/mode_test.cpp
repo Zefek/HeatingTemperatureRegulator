@@ -44,7 +44,8 @@ struct Checker
 
   void Run(const char* name, void (*test)(Checker&))
   {
-    results.push_back(TestResult{name});
+    results.emplace_back();
+    results.back().name = name;
     auto begin = std::chrono::steady_clock::now();
     test(*this);
     results.back().duration = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - begin);
