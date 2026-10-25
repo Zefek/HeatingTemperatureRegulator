@@ -133,7 +133,7 @@ int lastCurrentTemp = 0;
 ModeArbiter modeArbiter;
 bool mqttConnected = false;
 unsigned char utf8Buffer[32];
-unsigned char mqttReceivedData[24];
+char mqttReceivedData[24];
 double averageWasteGasTemperature = 0;
 double slowAverageWasteGasTemperature = 0;
 unsigned long mqttConnectionTimeout = 0;
@@ -301,7 +301,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   mqttReceivedData[length] = '\0';
   if(strcmp(topic, TOPIC_SUPERVISORSTATUS) == 0)
   {
-    ModeSupervisorStatus(modeArbiter, (const char*)mqttReceivedData);
+    ModeSupervisorStatus(modeArbiter, mqttReceivedData);
   }
   //Termostat on/off
   if(strcmp(topic, TOPIC_THERMOSTAT) == 0)
@@ -319,7 +319,7 @@ void MQTTMessageReceive(char* topic, uint8_t* payload, unsigned int length)
   //Nastavení módu - Off (vypnuto), Automatic (automatické), Thermostat (ovládání termostatem)
   if(strcmp(topic, TOPIC_MODE) == 0)
   {
-    ModeRequest(modeArbiter, (const char*)mqttReceivedData);
+    ModeRequest(modeArbiter, mqttReceivedData);
   }
   //Bod na nule v topné křivce
   if(strcmp(topic, TOPIC_ZEROPOINT) == 0)
