@@ -178,6 +178,7 @@ void setup() {
   
   outsideTemperatureSensor.Init();
   tempSensors.Init();
+  tempSensors.GetHeaterTemperature(&currentState.heaterTemp);
   drv.Init(64);
   drv.DataTimeout = DataTimeout;
   drv.OnBusy = OnBusy;
@@ -203,6 +204,7 @@ void setup() {
   lcd.SetWasteGasTemperature(averageWasteGasTemperature);
   lcd.EndInitialize();
   convertToHalfByte(999, currentState.outsideAvgTemp, 4);
+  checkFlame();
   resetServo = true;
   wdt_enable(WDTO_8S);
 }
@@ -616,7 +618,7 @@ void HeatingOff()
   currentState.heatingActive = 0;
 }
 
-void checkHeating()
+void checkFlame()
 {
   if(!shouldHeatingBeOnByTemperature && HeaterOn(currentState.heaterTemp, slowAverageWasteGasTemperature))
   {
@@ -638,6 +640,10 @@ void checkHeating()
     lcd.SetHeater(false);
     currentState.flame = 0;
   }
+}
+
+void checkHeating()
+{
   if(currentState.heatingActive == 1 && ShouldBeHeatingOff())
   {
     HeatingOff();
@@ -869,9 +875,10 @@ void loop() {
     sendDiag();
     lastDiagSendMillis = currentMillis;
   }
+  checkFlame();
   if(!relayOn)
   {
-    checkHeating();    
+    checkHeating();
   }
   if(relayOn && currentMillis - relayOnMillis >= interval)
   {
