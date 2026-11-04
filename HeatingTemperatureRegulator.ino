@@ -96,6 +96,7 @@ struct DiagData {
   uint8_t  resetReason;
   uint16_t loopMaxMs;
   int8_t   rssi;
+  uint16_t fwVersion;
 };
 #pragma pack(pop)
 
@@ -162,6 +163,7 @@ int freeRam() {
 
 void setup() {
   currentDiagData.resetReason = MCUSR;
+  currentDiagData.fwVersion = (uint16_t)FW_VERSION;
   MCUSR = 0;
   Serial.begin(57600);
   //AT+UART_DEF=57600,8,1,0,0
