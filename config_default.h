@@ -7,6 +7,7 @@
 #define TOPIC_OUTSIDETEMPERATURE "TOPIC_OUTSIDETEMPERATURE"
 #define TOPIC_HEATERSTATE "TOPIC_HEATERSTATE"
 #define TOPIC_DIAG "TOPIC_DIAG"
+#define TOPIC_SUPERVISORSTATUS "homeassistant/status"
 
 #define MAXTEMPDIFFERENCE 0
 #define PCONST            0  //P konstanta pro PID
@@ -23,6 +24,8 @@
 #define OUTSIDEAVGTAU               180.0   //Časová konstanta průměru venkovní teploty [min] (≈ původní 1/180)
 #define OUTSIDETEMPERATURETIMEOUT   600000UL //Po této době bez dat ze snímače [ms] => na displeji --.-
 
+
+#define SUPERVISORLOSTDELAY         120000UL
 
 #define HeaterOn(ht, wgt)  false
 #define HeaterOff(ht, wgt)  false
