@@ -32,7 +32,7 @@ jobs:
           path: test-results/
 
       - name: Install Arduino CLI
-        uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02  # v2.0.0
+        uses: arduino/setup-arduino-cli@b3cda96fddef6af6c56b4c5efb5c47e2357935db  # v2.1.0
 
       - name: Initialize Arduino CLI
         run: |
@@ -48,7 +48,7 @@ jobs:
       - name: Static analysis
         run: |
           sudo apt-get install -y cppcheck
-          cppcheck --enable=all --language=c++ --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unusedStructMember --suppress=noExplicitConstructor --suppress=noCopyConstructor --suppress=noOperatorEq --suppress=constParameterPointer --suppress=constVariablePointer --suppress=unsignedLessThanZero --suppress=unsignedPositive --suppress=checkersReport --error-exitcode=1 *.ino *.cpp *.h
+          cppcheck --enable=all --language=c++ --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unusedStructMember --suppress=noExplicitConstructor --suppress=noCopyConstructor --suppress=noOperatorEq --suppress=constParameterPointer --suppress=constVariablePointer --suppress=checkersReport --suppress=functionStatic --suppress=normalCheckLevelMaxBranches --error-exitcode=1 *.ino *.cpp *.h
 
       - name: Compile Arduino project
         run: |

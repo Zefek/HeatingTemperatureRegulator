@@ -13,10 +13,10 @@
 #define PCONST            0  //P konstanta pro PID
 #define DCONST            0 //D konstanta pro PID
 #define TEMPCHECKINTERVAL   0   //Vzorkovací interval
-#define AUTOMATICTEMPERATURE 0
-#define HEATEROVERHEATINGTEMPERATURE 0
+#define AUTOMATICTEMPERATURE 60
+#define HEATEROVERHEATINGTEMPERATURE 90
 #define OVERHEATINGTEMPERATURE 0
-#define MININPUTTEMPERATURE 0
+#define MININPUTTEMPERATURE 30
 #define MAXIMALSERVOSTEP 3
 #define SERVOMAXRANGE               70000 //Časový interval pohybu serva mezi krajními hodnotami
 #define SERVO1PC                    700L //Jedno procento z intervalu serva
