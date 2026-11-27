@@ -895,7 +895,6 @@ void loop() {
     int diff = constrain((maxTemp - (int)currentState.currentTemp), -MAXIMALSERVOSTEP, MAXIMALSERVOSTEP);
     double time = (double)(currentMillis - lastRegulatorMeasurement);
     double change = ((int)lastCurrentTemp - (int)currentState.currentTemp) / time;
-    double alpha = time / (60000 + time);
     if(firstRun)
     {
       dFiltered = change;
@@ -903,6 +902,7 @@ void loop() {
     }
     else
     {
+      double alpha = time / (60000 + time);
       dFiltered = dFiltered  + alpha * (change - dFiltered);
     }
     long newInterval = constrain((diff * PCONST) + (dFiltered * DCONST), -SERVOMAXRANGE, SERVOMAXRANGE);
